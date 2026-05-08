@@ -15,8 +15,15 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '25', 10)));
-  const sortBy = searchParams.get('sortBy') || 'timestamp';
-  const sortOrder = searchParams.get('sortOrder') === 'asc' ? 1 : -1;
+  const sortParam = searchParams.get('sort');
+  let sortConfigs: { key: string; direction: 'asc' | 'desc' }[] = [];
+  
+  try {
+    if (sortParam) sortConfigs = JSON.parse(sortParam);
+  } catch {
+    sortConfigs = [{ key: 'timestamp', direction: 'desc' }];
+  }
+  
   const skip = (page - 1) * limit;
 
   let client;
@@ -35,9 +42,8 @@ export async function GET(request: NextRequest) {
       .toArray();
     const latestMetrics = latestMetricsArray.length > 0 ? latestMetricsArray[0] : null;
 
-    // Build the aggregation pipeline
+    // Build the aggregation pipeline for severity weighting
     const pipeline: any[] = [
-      // 1. Add a numeric weight for severity sorting
       {
         $addFields: {
           severity_weight: {
@@ -55,16 +61,21 @@ export async function GET(request: NextRequest) {
       }
     ];
 
-    // 2. Apply sorting
+    // Build the multi-key sort object
     let sortObj: any = {};
-    if (sortBy === 'severity') {
-        sortObj.severity_weight = sortOrder;
-        sortObj.timestamp = -1; // Secondary sort
-    } else if (sortBy === 'confidence_score') {
-        sortObj.confidence_score = sortOrder;
-        sortObj.timestamp = -1;
+    if (sortConfigs.length > 0) {
+        sortConfigs.forEach(config => {
+            const order = config.direction === 'asc' ? 1 : -1;
+            if (config.key === 'severity') {
+                sortObj.severity_weight = order;
+            } else {
+                sortObj[config.key] = order;
+            }
+        });
+        // Always ensure timestamp is a fallback if not already included
+        if (!sortObj.timestamp) sortObj.timestamp = -1;
     } else {
-        sortObj.timestamp = sortOrder;
+        sortObj = { timestamp: -1 };
     }
 
     const totalAlerts = await db.collection('alerts').countDocuments();

@@ -42,9 +42,10 @@ export default function Dashboard() {
 
   const ITEMS_PER_PAGE = 25;
 
-  const fetchData = useCallback(async (pageNum: number = 1, sortBy: string = 'timestamp', sortDir: 'asc' | 'desc' = 'desc') => {
+  const fetchData = useCallback(async (pageNum: number = 1, currentSorts: { key: string; direction: 'asc' | 'desc' }[] = [{ key: 'timestamp', direction: 'desc' }]) => {
     try {
-      const res = await fetch(`/api/metrics?page=${pageNum}&limit=${ITEMS_PER_PAGE}&sortBy=${sortBy}&sortOrder=${sortDir}`);
+      const sortStr = encodeURIComponent(JSON.stringify(currentSorts));
+      const res = await fetch(`/api/metrics?page=${pageNum}&limit=${ITEMS_PER_PAGE}&sort=${sortStr}`);
       const json = await res.json();
       setData(json);
       setPage(pageNum);
@@ -125,27 +126,34 @@ export default function Dashboard() {
   };
 
   // ─── Sorting ──────────────────────────────────────────────────────────
-  const handleSort = (key: string) => {
-    // Prevent multiple concurrent sort requests (prevents hanging)
+  const handleSort = (key: string, isMulti: boolean) => {
     if (loading) return;
     
     setLoading(true);
-    let newDir: 'asc' | 'desc' = 'desc';
+    let newSorts: { key: string; direction: 'asc' | 'desc' }[] = [];
     
-    // Determine next direction
-    const existing = sortConfigs.find(s => s.key === key);
-    if (existing) {
-      newDir = existing.direction === 'asc' ? 'desc' : 'asc';
+    if (isMulti) {
+      // Multi-sort logic
+      const existing = sortConfigs.find(s => s.key === key);
+      if (existing) {
+        // Toggle direction
+        newSorts = sortConfigs.map(s => s.key === key ? { ...s, direction: s.direction === 'asc' ? 'desc' as const : 'asc' as const } : s);
+      } else {
+        // Add new sort key
+        newSorts = [...sortConfigs, { key, direction: 'desc' }];
+      }
     } else {
-      // Default to descending for new sorts (most useful for severity/time)
-      newDir = 'desc';
+      // Single sort logic
+      const existing = sortConfigs.find(s => s.key === key);
+      if (existing) {
+        newSorts = [{ key, direction: existing.direction === 'asc' ? 'desc' : 'asc' }];
+      } else {
+        newSorts = [{ key, direction: 'desc' }];
+      }
     }
 
-    // Update state first
-    setSortConfigs([{ key, direction: newDir }]);
-
-    // Then fetch
-    fetchData(1, key, newDir);
+    setSortConfigs(newSorts);
+    fetchData(1, newSorts);
   };
 
   const getSortedAlerts = () => {
@@ -468,20 +476,20 @@ export default function Dashboard() {
                 <tr>
                   <th 
                     className={`px-6 py-4 font-medium rounded-tl-lg cursor-pointer hover:text-white transition-colors select-none group ${loading ? 'opacity-50 cursor-wait' : ''}`} 
-                    onClick={() => handleSort('timestamp')}
+                    onClick={(e) => handleSort('timestamp', e.shiftKey)}
                   >
                     Timestamp {getSortIcon('timestamp')}
                   </th>
                   <th className="px-6 py-4 font-medium">Rule Title</th>
                   <th 
                     className={`px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors select-none group ${loading ? 'opacity-50 cursor-wait' : ''}`} 
-                    onClick={() => handleSort('severity')}
+                    onClick={(e) => handleSort('severity', e.shiftKey)}
                   >
                     Severity {getSortIcon('severity')}
                   </th>
                   <th 
                     className={`px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors select-none group ${loading ? 'opacity-50 cursor-wait' : ''}`} 
-                    onClick={() => handleSort('confidence_score')}
+                    onClick={(e) => handleSort('confidence_score', e.shiftKey)}
                   >
                     Confidence {getSortIcon('confidence_score')}
                   </th>
