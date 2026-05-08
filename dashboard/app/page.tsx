@@ -126,18 +126,25 @@ export default function Dashboard() {
 
   // ─── Sorting ──────────────────────────────────────────────────────────
   const handleSort = (key: string) => {
+    // Prevent multiple concurrent sort requests (prevents hanging)
+    if (loading) return;
+    
     setLoading(true);
     let newDir: 'asc' | 'desc' = 'desc';
     
-    setSortConfigs(prev => {
-      const existing = prev.find(s => s.key === key);
-      if (existing) {
-        newDir = existing.direction === 'asc' ? 'desc' : 'asc';
-        return [{ key, direction: newDir }];
-      }
-      return [{ key, direction: 'desc' }];
-    });
+    // Determine next direction
+    const existing = sortConfigs.find(s => s.key === key);
+    if (existing) {
+      newDir = existing.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      // Default to descending for new sorts (most useful for severity/time)
+      newDir = 'desc';
+    }
 
+    // Update state first
+    setSortConfigs([{ key, direction: newDir }]);
+
+    // Then fetch
     fetchData(1, key, newDir);
   };
 
@@ -459,14 +466,23 @@ export default function Dashboard() {
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead className="text-xs uppercase bg-neutral-950/50 text-neutral-400">
                 <tr>
-                  <th className="px-6 py-4 font-medium rounded-tl-lg cursor-pointer hover:text-white transition-colors select-none group" onClick={() => handleSort('timestamp')}>
+                  <th 
+                    className={`px-6 py-4 font-medium rounded-tl-lg cursor-pointer hover:text-white transition-colors select-none group ${loading ? 'opacity-50 cursor-wait' : ''}`} 
+                    onClick={() => handleSort('timestamp')}
+                  >
                     Timestamp {getSortIcon('timestamp')}
                   </th>
                   <th className="px-6 py-4 font-medium">Rule Title</th>
-                  <th className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors select-none group" onClick={() => handleSort('severity')}>
+                  <th 
+                    className={`px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors select-none group ${loading ? 'opacity-50 cursor-wait' : ''}`} 
+                    onClick={() => handleSort('severity')}
+                  >
                     Severity {getSortIcon('severity')}
                   </th>
-                  <th className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors select-none group" onClick={() => handleSort('confidence_score')}>
+                  <th 
+                    className={`px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors select-none group ${loading ? 'opacity-50 cursor-wait' : ''}`} 
+                    onClick={() => handleSort('confidence_score')}
+                  >
                     Confidence {getSortIcon('confidence_score')}
                   </th>
                   <th className="px-6 py-4 font-medium">User/IP</th>

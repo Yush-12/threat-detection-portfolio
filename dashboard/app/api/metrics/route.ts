@@ -35,15 +35,36 @@ export async function GET(request: NextRequest) {
       .toArray();
     const latestMetrics = latestMetricsArray.length > 0 ? latestMetricsArray[0] : null;
 
-    // Build the sort object
-    let sortObj: any = { [sortBy]: sortOrder };
-    
-    // Special handling for severity (map it to numeric values for sorting)
-    // Note: In a production app, we'd store a 'severity_score' field directly in DB
-    // For this portfolio, we'll sort by the severity field as-is or handle it in aggregation
-    // For now, simple alphabetical/field sort, but we ensure 'timestamp' is always the secondary sort
-    if (sortBy !== 'timestamp') {
+    // Build the aggregation pipeline
+    const pipeline: any[] = [
+      // 1. Add a numeric weight for severity sorting
+      {
+        $addFields: {
+          severity_weight: {
+            $switch: {
+              branches: [
+                { case: { $eq: [{ $toLower: "$severity" }, "critical"] }, then: 4 },
+                { case: { $eq: [{ $toLower: "$severity" }, "high"] }, then: 3 },
+                { case: { $eq: [{ $toLower: "$severity" }, "medium"] }, then: 2 },
+                { case: { $eq: [{ $toLower: "$severity" }, "low"] }, then: 1 }
+              ],
+              default: 0
+            }
+          }
+        }
+      }
+    ];
+
+    // 2. Apply sorting
+    let sortObj: any = {};
+    if (sortBy === 'severity') {
+        sortObj.severity_weight = sortOrder;
+        sortObj.timestamp = -1; // Secondary sort
+    } else if (sortBy === 'confidence_score') {
+        sortObj.confidence_score = sortOrder;
         sortObj.timestamp = -1;
+    } else {
+        sortObj.timestamp = sortOrder;
     }
 
     const totalAlerts = await db.collection('alerts').countDocuments();
@@ -51,10 +72,12 @@ export async function GET(request: NextRequest) {
 
     const alerts = await db
       .collection('alerts')
-      .find({})
-      .sort(sortObj)
-      .skip(skip)
-      .limit(limit)
+      .aggregate([
+        ...pipeline,
+        { $sort: sortObj },
+        { $skip: skip },
+        { $limit: limit }
+      ])
       .toArray();
 
     return NextResponse.json({
