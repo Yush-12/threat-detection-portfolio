@@ -1,4 +1,3 @@
-
 # Large Data Files (Automatically downloaded by script)
 enterprise-attack.json
 
@@ -26,3 +25,6 @@ Thumbs.db
 # Node (Catch-all)
 node_modules/
 .next/
+
+# Vercel
+.vercel/

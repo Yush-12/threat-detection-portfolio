@@ -1,7 +1,6 @@
 import os
 import random
 import datetime
-import json
 import requests
 from faker import Faker
 from pymongo import MongoClient

@@ -1,5 +1,5 @@
 pymongo
 faker
-pysigma
+pyyaml
 mitreattack-python
 requests

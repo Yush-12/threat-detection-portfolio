@@ -4,6 +4,8 @@ A cloud-native Security Information and Event Management (SIEM) pipeline that ge
 
 Built to demonstrate practical security engineering skills: detection engineering, log analysis, threat intelligence enrichment, and security data visualization.
 
+### 🌐 [Live Demo →](https://threatdetectionportfolio.vercel.app)
+
 ---
 
 ## 🏗️ Architecture
@@ -153,6 +155,7 @@ Visit **http://localhost:3000** to see your dashboard.
 - **Summary Cards** — Total alerts, High/Critical count, and last pipeline run timestamp
 - **Severity Breakdown** — Interactive donut chart with color-coded severity levels
 - **MITRE ATT&CK Techniques** — Horizontal bar chart of the top 5 detected techniques
+- **Search & Filter** — Instantly filter alerts by username, IP address, or rule title
 - **Sortable Alerts Table** — Multi-column sorting (click to sort, Shift+click for combined sorting)
 - **Confidence Scoring** — Visual progress bars indicating detection confidence per alert
 - **3-Way Sort Toggle** — Click: ASC → DESC → Default
