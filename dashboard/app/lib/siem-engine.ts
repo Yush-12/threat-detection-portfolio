@@ -69,8 +69,15 @@ export interface RawLog {
 export function generateSyntheticLogs(): RawLog[] {
   const logs: RawLog[] = [];
 
-  // ~400 normal banking logs
-  for (let i = 0; i < 400; i++) {
+  // Randomized counts for variety
+  const normalCount = faker.number.int({ min: 300, max: 600 });
+  const bruteForceCount = faker.number.int({ min: 20, max: 60 });
+  const successMonitorCount = faker.number.int({ min: 10, max: 40 });
+  const highValueCount = faker.number.int({ min: 5, max: 25 });
+  const roleChangeCount = faker.number.int({ min: 5, max: 20 });
+
+  // ~Normal banking logs
+  for (let i = 0; i < normalCount; i++) {
     logs.push({
       timestamp: faker.date.recent({ days: 30 }).toISOString(),
       user: faker.internet.username(),
@@ -81,10 +88,10 @@ export function generateSyntheticLogs(): RawLog[] {
     });
   }
 
-  // ~40 Credential Stuffing / Brute Force (same IP, different users)
+  // ~Credential Stuffing / Brute Force
   const badIp = faker.internet.ipv4();
   const baseTime = faker.date.recent({ days: 30 });
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < bruteForceCount; i++) {
     const t = new Date(baseTime.getTime() + i * 2000);
     logs.push({
       timestamp: t.toISOString(),
@@ -96,9 +103,9 @@ export function generateSyntheticLogs(): RawLog[] {
     });
   }
 
-  // ~30 Login success monitoring
+  // ~Login success monitoring
   const victimUser = faker.internet.username();
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < successMonitorCount; i++) {
     const t = new Date(baseTime.getTime() + i * 600000);
     logs.push({
       timestamp: t.toISOString(),
@@ -110,8 +117,8 @@ export function generateSyntheticLogs(): RawLog[] {
     });
   }
 
-  // ~15 High-Value Transfer logs
-  for (let i = 0; i < 15; i++) {
+  // ~High-Value Transfer logs
+  for (let i = 0; i < highValueCount; i++) {
     const t = new Date(baseTime.getTime() + i * 10800000);
     logs.push({
       timestamp: t.toISOString(),
@@ -125,8 +132,8 @@ export function generateSyntheticLogs(): RawLog[] {
     });
   }
 
-  // ~15 Privilege Escalation logs
-  for (let i = 0; i < 15; i++) {
+  // ~Privilege Escalation logs
+  for (let i = 0; i < roleChangeCount; i++) {
     const t = new Date(baseTime.getTime() + i * 21600000);
     logs.push({
       timestamp: t.toISOString(),
