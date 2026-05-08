@@ -23,10 +23,23 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: List files for debug
-        run: ls -R
+      - name: Verify Secrets
+        run: |
+          if [ -z "${{ secrets.MONGO_URI }}" ]; then
+            echo "Error: MONGO_URI secret is missing in GitHub Settings!"
+            exit 1
+          else
+            echo "Successfully loaded MONGO_URI secret."
+          fi
 
       - name: Run SIEM Pipeline script
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
-        run: python ./run_siem_pipeline.py
+        run: |
+          SCRIPT_PATH=$(find . -name "run_siem_pipeline.py" | head -n 1)
+          if [ -z "$SCRIPT_PATH" ]; then
+            echo "Error: Could not find run_siem_pipeline.py in the repository!"
+            exit 1
+          fi
+          echo "Found script at: $SCRIPT_PATH"
+          python "$SCRIPT_PATH"
