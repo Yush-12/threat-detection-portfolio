@@ -132,24 +132,36 @@ export default function Dashboard() {
     setLoading(true);
     let newSorts: { key: string; direction: 'asc' | 'desc' }[] = [];
     
+    const existing = sortConfigs.find(s => s.key === key);
+    
     if (isMulti) {
-      // Multi-sort logic
-      const existing = sortConfigs.find(s => s.key === key);
       if (existing) {
-        // Toggle direction
-        newSorts = sortConfigs.map(s => s.key === key ? { ...s, direction: s.direction === 'asc' ? 'desc' as const : 'asc' as const } : s);
+        if (existing.direction === 'desc') {
+          // 1st -> 2nd state: DESC to ASC
+          newSorts = sortConfigs.map(s => s.key === key ? { ...s, direction: 'asc' as const } : s);
+        } else {
+          // 2nd -> 3rd state: ASC to RESET (Remove)
+          newSorts = sortConfigs.filter(s => s.key !== key);
+        }
       } else {
-        // Add new sort key
+        // RESET -> 1st state: Add as DESC
         newSorts = [...sortConfigs, { key, direction: 'desc' }];
       }
     } else {
-      // Single sort logic
-      const existing = sortConfigs.find(s => s.key === key);
       if (existing) {
-        newSorts = [{ key, direction: existing.direction === 'asc' ? 'desc' : 'asc' }];
+        if (existing.direction === 'desc') {
+          newSorts = [{ key, direction: 'asc' }];
+        } else {
+          newSorts = []; // Reset
+        }
       } else {
         newSorts = [{ key, direction: 'desc' }];
       }
+    }
+
+    // Default to timestamp desc if no sorts left
+    if (newSorts.length === 0) {
+        newSorts = [{ key: 'timestamp', direction: 'desc' }];
     }
 
     setSortConfigs(newSorts);
