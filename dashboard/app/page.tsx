@@ -1,101 +1,141 @@
 "use client";
 
-import { useEffect, useState } from 'react';
-import { ShieldAlert, Activity, ShieldCheck, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
+  ShieldAlert, Activity, ShieldCheck, AlertTriangle,
+  ArrowUp, ArrowDown, ArrowUpDown, Search,
+  RefreshCw, Upload, ChevronLeft, ChevronRight, Zap
+} from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
 
+interface Pagination {
+  currentPage: number;
+  totalPages: number;
+  totalAlerts: number;
+  limit: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+interface DashboardData {
+  metrics: any;
+  alerts: any[];
+  pagination: Pagination;
+  error?: string;
+}
+
 export default function Dashboard() {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
   const [sortConfigs, setSortConfigs] = useState<{ key: string; direction: 'asc' | 'desc' }[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    fetch('/api/metrics')
-      .then((res) => res.json())
-      .then((data) => {
-        setData(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setLoading(false);
-      });
+  // Action states
+  const [generating, setGenerating] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const ITEMS_PER_PAGE = 25;
+
+  const fetchData = useCallback(async (pageNum: number = 1) => {
+    try {
+      const res = await fetch(`/api/metrics?page=${pageNum}&limit=${ITEMS_PER_PAGE}`);
+      const json = await res.json();
+      setData(json);
+      setPage(pageNum);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center">
-        <div className="animate-pulse flex flex-col items-center gap-4">
-          <ShieldAlert className="w-12 h-12 text-indigo-500" />
-          <h2 className="text-xl font-semibold text-neutral-400">Loading SIEM Data...</h2>
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    fetchData(1);
+  }, [fetchData]);
 
-  if (!data || data.error) {
-    return (
-      <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center">
-        <div className="text-red-500 p-6 bg-red-500/10 rounded-xl border border-red-500/20 text-center">
-          <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
-          <h2 className="text-xl font-bold">Failed to load data</h2>
-          <p className="text-sm mt-2 text-red-400">{data?.error || 'Ensure MongoDB is running and MONGO_URI is set.'}</p>
-        </div>
-      </div>
-    );
-  }
+  // Auto-dismiss status messages
+  useEffect(() => {
+    if (statusMessage) {
+      const timer = setTimeout(() => setStatusMessage(null), 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [statusMessage]);
 
-  const { metrics, alerts } = data;
-
-  // Format data for Recharts
-  const severityColors: Record<string, string> = {
-    CRITICAL: '#ef4444',
-    HIGH: '#f97316',
-    MEDIUM: '#eab308',
-    LOW: '#3b82f6',
-    UNKNOWN: '#6b7280'
+  // ─── Generate Logs Handler ─────────────────────────────────────────────
+  const handleGenerate = async () => {
+    setGenerating(true);
+    setStatusMessage(null);
+    try {
+      const res = await fetch('/api/generate', { method: 'POST' });
+      const json = await res.json();
+      if (json.success) {
+        setStatusMessage({ text: json.message, type: 'success' });
+        // Refresh dashboard data
+        await fetchData(1);
+      } else {
+        setStatusMessage({ text: json.error || 'Generation failed', type: 'error' });
+      }
+    } catch {
+      setStatusMessage({ text: 'Network error during generation', type: 'error' });
+    } finally {
+      setGenerating(false);
+    }
   };
 
-  const severityData = metrics?.alert_counts_by_severity 
-    ? Object.entries(metrics.alert_counts_by_severity).map(([key, value]) => ({
-        name: String(key),
-        value: Number(value),
-        fill: severityColors[key] || severityColors.UNKNOWN
-      }))
-    : [];
+  // ─── Upload Logs Handler ───────────────────────────────────────────────
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  const mitreData = metrics?.top_mitre_techniques
-    ? Object.entries(metrics.top_mitre_techniques).map(([key, value]) => ({
-        technique: String(key),
-        count: Number(value)
-      }))
-    : [];
+    setUploading(true);
+    setStatusMessage(null);
 
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const json = await res.json();
+
+      if (json.success) {
+        setStatusMessage({ text: json.message, type: 'success' });
+        await fetchData(1);
+      } else {
+        setStatusMessage({ text: json.error || 'Upload failed', type: 'error' });
+      }
+    } catch {
+      setStatusMessage({ text: 'Network error during upload', type: 'error' });
+    } finally {
+      setUploading(false);
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // ─── Pagination Handlers ──────────────────────────────────────────────
+  const goToPage = (pageNum: number) => {
+    setLoading(true);
+    fetchData(pageNum);
+  };
+
+  // ─── Sorting ──────────────────────────────────────────────────────────
   const handleSort = (key: string, isMulti: boolean) => {
     setSortConfigs(prev => {
       const existing = prev.find(s => s.key === key);
-      
+
       if (!isMulti) {
-        // Single column sort logic
         if (existing) {
           if (existing.direction === 'asc') return [{ key, direction: 'desc' }];
-          return []; // Reset to default
+          return [];
         }
         return [{ key, direction: 'asc' }];
       } else {
-        // Multi-column sort (Shift+Click) logic
         if (existing) {
           if (existing.direction === 'asc') {
             return prev.map(s => s.key === key ? { ...s, direction: 'desc' as const } : s);
@@ -108,13 +148,12 @@ export default function Dashboard() {
   };
 
   const getSortedAlerts = () => {
-    if (!alerts) return [];
-    
-    // First, filter by search term
-    let filtered = [...alerts];
+    if (!data?.alerts) return [];
+
+    let filtered = [...data.alerts];
     if (searchTerm) {
       const lowSearch = searchTerm.toLowerCase();
-      filtered = filtered.filter((alert: any) => 
+      filtered = filtered.filter((alert: any) =>
         alert.rule_title?.toLowerCase().includes(lowSearch) ||
         alert.hit_log?.user?.toLowerCase().includes(lowSearch) ||
         alert.hit_log?.ip_address?.toLowerCase().includes(lowSearch)
@@ -138,36 +177,169 @@ export default function Dashboard() {
         } else if (config.key === 'confidence_score') {
           comparison = config.direction === 'asc' ? a.confidence_score - b.confidence_score : b.confidence_score - a.confidence_score;
         }
-
         if (comparison !== 0) return comparison;
       }
       return 0;
     });
   };
 
-  const sortedAlerts = getSortedAlerts().slice(0, 50);
+  const sortedAlerts = getSortedAlerts();
 
   const getSortIcon = (key: string) => {
     const config = sortConfigs.find(s => s.key === key);
     if (!config) return <ArrowUpDown className="w-3 h-3 ml-1 text-neutral-600 inline opacity-40 group-hover:opacity-100 transition-opacity" />;
-    return config.direction === 'asc' ? 
-      <ArrowUp className="w-3 h-3 ml-1 text-indigo-400 inline shadow-glow" /> : 
-      <ArrowDown className="w-3 h-3 ml-1 text-indigo-400 inline shadow-glow" />;
+    return config.direction === 'asc' ?
+      <ArrowUp className="w-3 h-3 ml-1 text-indigo-400 inline" /> :
+      <ArrowDown className="w-3 h-3 ml-1 text-indigo-400 inline" />;
+  };
+
+  // ─── Loading State ────────────────────────────────────────────────────
+  if (loading && !data) {
+    return (
+      <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center">
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <ShieldAlert className="w-12 h-12 text-indigo-500" />
+          <h2 className="text-xl font-semibold text-neutral-400">Loading SIEM Data...</h2>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data || data.error) {
+    return (
+      <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center">
+        <div className="text-red-500 p-6 bg-red-500/10 rounded-xl border border-red-500/20 text-center max-w-md">
+          <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
+          <h2 className="text-xl font-bold">Failed to load data</h2>
+          <p className="text-sm mt-2 text-red-400">{data?.error || 'Ensure MongoDB is running and MONGO_URI is set.'}</p>
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {generating ? 'Generating...' : 'Generate Sample Data'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const { metrics, pagination } = data;
+
+  // Format data for Recharts
+  const severityColors: Record<string, string> = {
+    CRITICAL: '#ef4444',
+    HIGH: '#f97316',
+    MEDIUM: '#eab308',
+    LOW: '#3b82f6',
+    UNKNOWN: '#6b7280'
+  };
+
+  const severityData = metrics?.alert_counts_by_severity
+    ? Object.entries(metrics.alert_counts_by_severity).map(([key, value]) => ({
+        name: String(key),
+        value: Number(value),
+        fill: severityColors[key] || severityColors.UNKNOWN
+      }))
+    : [];
+
+  const mitreData = metrics?.top_mitre_techniques
+    ? Object.entries(metrics.top_mitre_techniques).map(([key, value]) => ({
+        technique: String(key),
+        count: Number(value)
+      }))
+    : [];
+
+  // Generate page numbers for pagination
+  const getPageNumbers = () => {
+    if (!pagination) return [];
+    const pages: (number | '...')[] = [];
+    const total = pagination.totalPages;
+    const current = pagination.currentPage;
+
+    if (total <= 7) {
+      for (let i = 1; i <= total; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (current > 3) pages.push('...');
+      for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) {
+        pages.push(i);
+      }
+      if (current < total - 2) pages.push('...');
+      pages.push(total);
+    }
+    return pages;
   };
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 p-6 md:p-12 font-sans selection:bg-indigo-500/30">
       <div className="max-w-7xl mx-auto space-y-8">
-        
+
         {/* Header */}
         <header className="flex flex-col gap-2 border-b border-neutral-800 pb-6">
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="w-8 h-8 text-indigo-500" />
-            <h1 className="text-3xl font-bold tracking-tight text-white">SIEM Dashboard</h1>
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="w-8 h-8 text-indigo-500" />
+              <h1 className="text-3xl font-bold tracking-tight text-white">SIEM Dashboard</h1>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3">
+              <button
+                id="generate-logs-btn"
+                onClick={handleGenerate}
+                disabled={generating || uploading}
+                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40"
+              >
+                {generating ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Zap className="w-4 h-4" />
+                )}
+                {generating ? 'Generating...' : 'Generate Logs'}
+              </button>
+
+              <label
+                id="upload-logs-btn"
+                className={`flex items-center gap-2 px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 rounded-xl text-neutral-200 text-sm font-semibold transition-all cursor-pointer border border-neutral-700 hover:border-neutral-600 ${(uploading || generating) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {uploading ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
+                {uploading ? 'Uploading...' : 'Upload Logs'}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json"
+                  onChange={handleUpload}
+                  disabled={uploading || generating}
+                  className="hidden"
+                />
+              </label>
+            </div>
           </div>
+
           <p className="text-neutral-400 text-sm font-medium tracking-wide uppercase">
-            Data from last SIEM engine run
+            Real-time threat detection & analysis
           </p>
+
+          {/* Status Toast */}
+          {statusMessage && (
+            <div className={`mt-2 px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2 animate-fade-in ${
+              statusMessage.type === 'success'
+                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                : 'bg-red-500/10 text-red-400 border border-red-500/20'
+            }`}>
+              {statusMessage.type === 'success' ? (
+                <ShieldCheck className="w-4 h-4 flex-shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              )}
+              {statusMessage.text}
+            </div>
+          )}
         </header>
 
         {/* Top Level Stats */}
@@ -183,7 +355,7 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl shadow-black/50 hover:border-red-500/50 transition-colors">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-red-500/10 rounded-xl text-red-400">
@@ -229,7 +401,7 @@ export default function Dashboard() {
                       <Cell key={`cell-${index}`} fill={entry.fill} />
                     ))}
                   </Pie>
-                  <Tooltip 
+                  <Tooltip
                     contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '0.5rem', color: '#f5f5f5' }}
                     itemStyle={{ color: '#f5f5f5' }}
                   />
@@ -255,7 +427,7 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#262626" horizontal={false} />
                   <XAxis type="number" stroke="#737373" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis dataKey="technique" type="category" stroke="#a3a3a3" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip 
+                  <Tooltip
                     cursor={{ fill: '#262626' }}
                     contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '0.5rem' }}
                   />
@@ -266,12 +438,21 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Alerts Table */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl shadow-black/50 overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-            <h3 className="text-lg font-semibold text-neutral-200">Most Recent Alerts</h3>
+            <div className="flex items-center gap-3">
+              <h3 className="text-lg font-semibold text-neutral-200">Alerts</h3>
+              {pagination && (
+                <span className="text-xs text-neutral-500 bg-neutral-800 px-2.5 py-1 rounded-full">
+                  {pagination.totalAlerts} total
+                </span>
+              )}
+            </div>
             <div className="relative group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500 group-focus-within:text-indigo-400 transition-colors" />
-              <input 
+              <input
+                id="search-alerts"
                 type="text"
                 placeholder="Search User, IP, or Rule..."
                 value={searchTerm}
@@ -320,8 +501,8 @@ export default function Dashboard() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <div className="w-16 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full ${alert.confidence_score > 80 ? 'bg-emerald-500' : 'bg-indigo-500'}`} 
+                          <div
+                            className={`h-full rounded-full ${alert.confidence_score > 80 ? 'bg-emerald-500' : 'bg-indigo-500'}`}
                             style={{ width: `${alert.confidence_score}%` }}
                           />
                         </div>
@@ -342,16 +523,74 @@ export default function Dashboard() {
                     </td>
                   </tr>
                 ))}
-                {!sortedAlerts || sortedAlerts.length === 0 && (
+                {(!sortedAlerts || sortedAlerts.length === 0) && (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-neutral-500">
-                      No alerts found
+                    <td colSpan={6} className="px-6 py-12 text-center text-neutral-500">
+                      <div className="flex flex-col items-center gap-3">
+                        <ShieldAlert className="w-8 h-8 text-neutral-700" />
+                        <p>No alerts found</p>
+                        <button
+                          onClick={handleGenerate}
+                          disabled={generating}
+                          className="text-indigo-400 hover:text-indigo-300 text-sm font-medium transition-colors"
+                        >
+                          Generate sample data →
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {pagination && pagination.totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t border-neutral-800">
+              <p className="text-xs text-neutral-500">
+                Showing {((pagination.currentPage - 1) * pagination.limit) + 1}–{Math.min(pagination.currentPage * pagination.limit, pagination.totalAlerts)} of {pagination.totalAlerts} alerts
+              </p>
+
+              <div className="flex items-center gap-1">
+                <button
+                  id="pagination-prev"
+                  onClick={() => goToPage(page - 1)}
+                  disabled={!pagination.hasPrev || loading}
+                  className="p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                {getPageNumbers().map((pageNum, idx) => (
+                  pageNum === '...' ? (
+                    <span key={`dots-${idx}`} className="px-2 text-neutral-600 text-sm">...</span>
+                  ) : (
+                    <button
+                      key={pageNum}
+                      onClick={() => goToPage(pageNum as number)}
+                      disabled={loading}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                        pageNum === pagination.currentPage
+                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                          : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  )
+                ))}
+
+                <button
+                  id="pagination-next"
+                  onClick={() => goToPage(page + 1)}
+                  disabled={!pagination.hasNext || loading}
+                  className="p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
       </div>

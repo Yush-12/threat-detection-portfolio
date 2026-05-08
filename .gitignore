@@ -22,9 +22,11 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Node (Catch-all)
+# Node
 node_modules/
 .next/
+dist/
+build/
 
 # Vercel
 .vercel/
