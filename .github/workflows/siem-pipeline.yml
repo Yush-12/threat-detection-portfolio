@@ -23,7 +23,10 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
+      - name: List files for debug
+        run: ls -R
+
       - name: Run SIEM Pipeline script
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
-        run: python run_siem_pipeline.py
+        run: python ./run_siem_pipeline.py
