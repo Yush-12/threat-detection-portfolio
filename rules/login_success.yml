@@ -1,0 +1,12 @@
+
+title: Successful Login Monitoring
+status: experimental
+logsource:
+    product: banking_app
+detection:
+    selection:
+        action: 'login_success'
+    condition: selection
+level: low
+tags:
+    - attack.t1078

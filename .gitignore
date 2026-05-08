@@ -1,0 +1,28 @@
+
+# Large Data Files (Automatically downloaded by script)
+enterprise-attack.json
+
+# Environment Secrets (CRITICAL: Never commit these)
+dashboard/.env*
+.env*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# Node (Catch-all)
+node_modules/
+.next/

@@ -1,0 +1,5 @@
+pymongo
+faker
+pysigma
+mitreattack-python
+requests

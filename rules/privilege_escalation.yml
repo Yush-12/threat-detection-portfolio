@@ -1,0 +1,13 @@
+
+title: Privilege Escalation - Unauthorized Role Change
+status: experimental
+description: Detects unauthorized role or permission changes that may indicate privilege escalation by a compromised or malicious account.
+logsource:
+    product: banking_app
+detection:
+    selection:
+        action: 'role_change'
+    condition: selection
+level: critical
+tags:
+    - attack.t1078.004

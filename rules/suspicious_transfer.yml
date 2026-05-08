@@ -1,0 +1,13 @@
+
+title: Suspicious High-Value Transfer
+status: experimental
+description: Detects fund transfers that exceed normal thresholds, which may indicate account takeover or insider fraud.
+logsource:
+    product: banking_app
+detection:
+    selection:
+        action: 'high_value_transfer'
+    condition: selection
+level: critical
+tags:
+    - attack.t1657
