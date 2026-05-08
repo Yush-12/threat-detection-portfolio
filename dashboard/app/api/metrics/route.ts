@@ -11,10 +11,12 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Parse pagination params
+  // Parse pagination & sorting params
   const searchParams = request.nextUrl.searchParams;
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '25', 10)));
+  const sortBy = searchParams.get('sortBy') || 'timestamp';
+  const sortOrder = searchParams.get('sortOrder') === 'asc' ? 1 : -1;
   const skip = (page - 1) * limit;
 
   let client;
@@ -22,28 +24,35 @@ export async function GET(request: NextRequest) {
   try {
     client = new MongoClient(uri);
     await client.connect();
-
     const db = client.db('siem_db');
 
-    // Fetch the single most recent dashboard_metrics document
+    // Fetch metrics
     const latestMetricsArray = await db
       .collection('dashboard_metrics')
       .find({})
       .sort({ timestamp: -1 })
       .limit(1)
       .toArray();
-
     const latestMetrics = latestMetricsArray.length > 0 ? latestMetricsArray[0] : null;
 
-    // Get total count of alerts for pagination
+    // Build the sort object
+    let sortObj: any = { [sortBy]: sortOrder };
+    
+    // Special handling for severity (map it to numeric values for sorting)
+    // Note: In a production app, we'd store a 'severity_score' field directly in DB
+    // For this portfolio, we'll sort by the severity field as-is or handle it in aggregation
+    // For now, simple alphabetical/field sort, but we ensure 'timestamp' is always the secondary sort
+    if (sortBy !== 'timestamp') {
+        sortObj.timestamp = -1;
+    }
+
     const totalAlerts = await db.collection('alerts').countDocuments();
     const totalPages = Math.ceil(totalAlerts / limit);
 
-    // Fetch paginated alerts
     const alerts = await db
       .collection('alerts')
       .find({})
-      .sort({ timestamp: -1 })
+      .sort(sortObj)
       .skip(skip)
       .limit(limit)
       .toArray();

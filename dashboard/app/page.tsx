@@ -42,9 +42,9 @@ export default function Dashboard() {
 
   const ITEMS_PER_PAGE = 25;
 
-  const fetchData = useCallback(async (pageNum: number = 1) => {
+  const fetchData = useCallback(async (pageNum: number = 1, sortBy: string = 'timestamp', sortDir: 'asc' | 'desc' = 'desc') => {
     try {
-      const res = await fetch(`/api/metrics?page=${pageNum}&limit=${ITEMS_PER_PAGE}`);
+      const res = await fetch(`/api/metrics?page=${pageNum}&limit=${ITEMS_PER_PAGE}&sortBy=${sortBy}&sortOrder=${sortDir}`);
       const json = await res.json();
       setData(json);
       setPage(pageNum);
@@ -125,26 +125,20 @@ export default function Dashboard() {
   };
 
   // ─── Sorting ──────────────────────────────────────────────────────────
-  const handleSort = (key: string, isMulti: boolean) => {
+  const handleSort = (key: string) => {
+    setLoading(true);
+    let newDir: 'asc' | 'desc' = 'desc';
+    
     setSortConfigs(prev => {
       const existing = prev.find(s => s.key === key);
-
-      if (!isMulti) {
-        if (existing) {
-          if (existing.direction === 'asc') return [{ key, direction: 'desc' }];
-          return [];
-        }
-        return [{ key, direction: 'asc' }];
-      } else {
-        if (existing) {
-          if (existing.direction === 'asc') {
-            return prev.map(s => s.key === key ? { ...s, direction: 'desc' as const } : s);
-          }
-          return prev.filter(s => s.key !== key);
-        }
-        return [...prev, { key, direction: 'asc' as const }];
+      if (existing) {
+        newDir = existing.direction === 'asc' ? 'desc' : 'asc';
+        return [{ key, direction: newDir }];
       }
+      return [{ key, direction: 'desc' }];
     });
+
+    fetchData(1, key, newDir);
   };
 
   const getSortedAlerts = () => {
@@ -465,14 +459,14 @@ export default function Dashboard() {
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead className="text-xs uppercase bg-neutral-950/50 text-neutral-400">
                 <tr>
-                  <th className="px-6 py-4 font-medium rounded-tl-lg cursor-pointer hover:text-white transition-colors select-none group" onClick={(e) => handleSort('timestamp', e.shiftKey)}>
+                  <th className="px-6 py-4 font-medium rounded-tl-lg cursor-pointer hover:text-white transition-colors select-none group" onClick={() => handleSort('timestamp')}>
                     Timestamp {getSortIcon('timestamp')}
                   </th>
                   <th className="px-6 py-4 font-medium">Rule Title</th>
-                  <th className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors select-none group" onClick={(e) => handleSort('severity', e.shiftKey)}>
+                  <th className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors select-none group" onClick={() => handleSort('severity')}>
                     Severity {getSortIcon('severity')}
                   </th>
-                  <th className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors select-none group" onClick={(e) => handleSort('confidence_score', e.shiftKey)}>
+                  <th className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors select-none group" onClick={() => handleSort('confidence_score')}>
                     Confidence {getSortIcon('confidence_score')}
                   </th>
                   <th className="px-6 py-4 font-medium">User/IP</th>
@@ -490,10 +484,10 @@ export default function Dashboard() {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-bold tracking-wider
-                        ${alert.severity === 'critical' ? 'bg-red-600/20 text-red-300 border border-red-400/30 animate-pulse' : ''}
-                        ${alert.severity === 'high' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : ''}
-                        ${alert.severity === 'medium' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' : ''}
-                        ${alert.severity === 'low' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : ''}
+                        ${alert.severity?.toLowerCase() === 'critical' ? 'bg-red-600/20 text-red-300 border border-red-400/30 animate-pulse' : ''}
+                        ${alert.severity?.toLowerCase() === 'high' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : ''}
+                        ${alert.severity?.toLowerCase() === 'medium' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' : ''}
+                        ${alert.severity?.toLowerCase() === 'low' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : ''}
                       `}>
                         {alert.severity?.toUpperCase() || 'UNKNOWN'}
                       </span>
