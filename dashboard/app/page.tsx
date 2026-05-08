@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   ShieldAlert, Activity, ShieldCheck, AlertTriangle,
   ArrowUp, ArrowDown, ArrowUpDown, Search,
-  RefreshCw, Upload, ChevronLeft, ChevronRight, Zap
+  RefreshCw, Upload, ChevronLeft, ChevronRight, Zap, Info
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -320,25 +320,54 @@ export default function Dashboard() {
                 {generating ? 'Generating...' : 'Generate Logs'}
               </button>
 
-              <label
-                id="upload-logs-btn"
-                className={`flex items-center gap-2 px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 rounded-xl text-neutral-200 text-sm font-semibold transition-all cursor-pointer border border-neutral-700 hover:border-neutral-600 ${(uploading || generating) ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {uploading ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Upload className="w-4 h-4" />
-                )}
-                {uploading ? 'Uploading...' : 'Upload Logs'}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json"
-                  onChange={handleUpload}
-                  disabled={uploading || generating}
-                  className="hidden"
-                />
-              </label>
+              <div className="relative group/upload">
+                <label
+                  id="upload-logs-btn"
+                  className={`flex items-center gap-2 px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 rounded-xl text-neutral-200 text-sm font-semibold transition-all cursor-pointer border border-neutral-700 hover:border-neutral-600 ${(uploading || generating) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {uploading ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  {uploading ? 'Uploading...' : 'Upload Logs'}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json"
+                    onChange={handleUpload}
+                    disabled={uploading || generating}
+                    className="hidden"
+                  />
+                </label>
+                
+                {/* Info Tooltip Icon */}
+                <div className="absolute -top-1 -right-1 group/tooltip">
+                  <div className="p-1 bg-neutral-900 border border-neutral-700 rounded-full text-indigo-400 shadow-lg cursor-help hover:text-indigo-300 transition-colors">
+                    <Info className="w-3 h-3" />
+                  </div>
+                  
+                  {/* Tooltip Content */}
+                  <div className="absolute top-8 right-0 w-64 p-4 bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl z-50 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 translate-y-2 group-hover/tooltip:translate-y-0">
+                    <h4 className="text-xs font-bold text-white mb-2 uppercase tracking-wider">Log Upload Format</h4>
+                    <p className="text-[11px] text-neutral-400 mb-3 leading-relaxed">
+                      Upload a <code className="text-indigo-400">.json</code> file with an array of objects. Required field: <code className="text-indigo-400">"action"</code>.
+                    </p>
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-tighter">Triggers:</p>
+                      <ul className="text-[10px] space-y-1 text-neutral-300">
+                        <li><span className="text-red-400 font-mono">"high_value_transfer"</span> → Critical</li>
+                        <li><span className="text-red-400 font-mono">"role_change"</span> → Critical</li>
+                        <li><span className="text-orange-400 font-mono">"login_failed"</span> → High</li>
+                        <li><span className="text-blue-400 font-mono">"login_success"</span> → Low</li>
+                      </ul>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-neutral-800 text-[10px] text-neutral-500 italic">
+                      Check root folder for sample_logs.json
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
