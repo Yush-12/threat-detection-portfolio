@@ -8,6 +8,7 @@ import { MitreHeatmap } from './components/MitreHeatmap';
 import { RiskScoreboard } from './components/RiskScoreboard';
 import { AlertsTable } from './components/AlertsTable';
 import { AlertDetailDrawer } from './components/AlertDetailDrawer';
+import type { Alert, DashboardMetrics } from './lib/siem-engine';
 
 export interface Pagination {
   currentPage: number;
@@ -19,8 +20,8 @@ export interface Pagination {
 }
 
 interface DashboardData {
-  metrics: any;
-  alerts: any[];
+  metrics: DashboardMetrics;
+  alerts: Alert[];
   pagination: Pagination;
   error?: string;
 }
@@ -38,7 +39,7 @@ export default function Dashboard() {
   const [generating, setGenerating] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-  const [selectedAlert, setSelectedAlert] = useState<any | null>(null);
+  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const ITEMS_PER_PAGE = 25;
@@ -66,10 +67,11 @@ export default function Dashboard() {
     }
   }, [sortConfigs, deferredSearch, selectedTechnique]);
 
-  // Reactive data fetch on search or MITRE technique filter change
+  // Reactive data fetch on state changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData(1, sortConfigs, deferredSearch, selectedTechnique);
-  }, [deferredSearch, selectedTechnique]);
+  }, [fetchData, sortConfigs, deferredSearch, selectedTechnique]);
 
   // Auto-dismiss status messages
   useEffect(() => {
@@ -170,11 +172,10 @@ export default function Dashboard() {
     }
 
     setSortConfigs(newSorts);
-    fetchData(1, newSorts);
   };
 
   // ─── Status Update Handler ────────────────────────────────────────────
-  const handleStatusChange = async (alertId: string, newStatus: string) => {
+  const handleStatusChange = async (alertId: string, newStatus: Alert['status']) => {
     try {
       const res = await fetch(`/api/alerts/${alertId}`, {
         method: 'PATCH',
@@ -295,15 +296,15 @@ export default function Dashboard() {
                   <div className="absolute top-8 right-0 w-64 p-4 bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl z-50 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 translate-y-2 group-hover/tooltip:translate-y-0">
                     <h4 className="text-xs font-bold text-white mb-2 uppercase tracking-wider">Log Upload Format</h4>
                     <p className="text-[11px] text-neutral-400 mb-3 leading-relaxed">
-                      Upload a <code className="text-indigo-400">.json</code> file with an array of objects. Required field: <code className="text-indigo-400">"action"</code>.
+                      Upload a <code className="text-indigo-400">.json</code> file with an array of objects. Required field: <code className="text-indigo-400">&quot;action&quot;</code>.
                     </p>
                     <div className="space-y-2">
                       <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-tighter">Triggers:</p>
                       <ul className="text-[10px] space-y-1 text-neutral-300">
-                        <li><span className="text-red-400 font-mono">"high_value_transfer"</span> → Critical</li>
-                        <li><span className="text-red-400 font-mono">"role_change"</span> → Critical</li>
-                        <li><span className="text-orange-400 font-mono">"login_failed"</span> → High</li>
-                        <li><span className="text-blue-400 font-mono">"login_success"</span> → Low</li>
+                        <li><span className="text-red-400 font-mono">&quot;high_value_transfer&quot;</span> → Critical</li>
+                        <li><span className="text-red-400 font-mono">&quot;role_change&quot;</span> → Critical</li>
+                        <li><span className="text-orange-400 font-mono">&quot;login_failed&quot;</span> → High</li>
+                        <li><span className="text-blue-400 font-mono">&quot;login_success&quot;</span> → Low</li>
                       </ul>
                     </div>
                     <div className="mt-3 pt-3 border-t border-neutral-800 text-[10px] text-neutral-500 italic">

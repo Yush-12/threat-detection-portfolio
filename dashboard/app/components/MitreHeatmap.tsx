@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import type { Alert, DashboardMetrics } from '../lib/siem-engine';
 
 // The 14 MITRE ATT&CK Tactics in order
 const MITRE_TACTICS = [
@@ -19,10 +20,8 @@ const MITRE_TACTICS = [
 ];
 
 interface MitreHeatmapProps {
-  alerts?: any[];
-  metrics?: {
-    mitre_techniques?: Record<string, { name: string; tactic: string; count: number; max_severity?: string }>;
-  } | null;
+  alerts?: Alert[];
+  metrics?: DashboardMetrics | null;
   selectedTechnique?: string | null;
   onFilterChange?: (techniqueId: string | null) => void;
 }
@@ -61,7 +60,7 @@ export function MitreHeatmap({ alerts, metrics, selectedTechnique, onFilterChang
           if (!data[tactic]) data[tactic] = {};
           
           if (!data[tactic][techId]) {
-            data[tactic][techId] = { name: enrichment.name, count: 0, severity: sev };
+            data[tactic][techId] = { name: enrichment.name || 'Unknown', count: 0, severity: sev };
           } else {
             // Keep highest severity
             const rank: Record<string, number> = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };

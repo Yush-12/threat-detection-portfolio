@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '../../lib/mongodb';
-import { SEVERITY_RANK } from '../../lib/siem-engine';
+import { SEVERITY_RANK, DashboardMetrics } from '../../lib/siem-engine';
+import { checkRateLimit, getClientIp } from '../../lib/rate-limit';
+import { Document } from 'mongodb';
 
 export async function GET(request: NextRequest) {
   // Parse pagination, sorting, search, and MITRE filter params
@@ -11,6 +13,11 @@ export async function GET(request: NextRequest) {
   const searchParam = searchParams.get('search')?.trim() || '';
   const techniqueParam = searchParams.get('technique')?.trim() || '';
   let sortConfigs: { key: string; direction: 'asc' | 'desc' }[] = [];
+  
+  const ip = getClientIp(request);
+  if (!checkRateLimit(`metrics_${ip}`, 100, 60000)) {
+    return NextResponse.json({ error: 'Too many requests. Please wait.' }, { status: 429 });
+  }
   
   try {
     if (sortParam) sortConfigs = JSON.parse(sortParam);
@@ -30,9 +37,9 @@ export async function GET(request: NextRequest) {
       .sort({ timestamp: -1 })
       .limit(1)
       .toArray();
-    let latestMetrics: any = latestMetricsArray.length > 0 ? latestMetricsArray[0] : null;
+    const latestMetrics = latestMetricsArray.length > 0 ? (latestMetricsArray[0] as unknown as DashboardMetrics) : null;
 
-    const firstTech: any = latestMetrics?.mitre_techniques ? Object.values(latestMetrics.mitre_techniques)[0] : null;
+    const firstTech = latestMetrics?.mitre_techniques ? Object.values(latestMetrics.mitre_techniques)[0] : null;
     if (latestMetrics && (!latestMetrics.mitre_techniques || !firstTech?.max_severity)) {
       const mitreAgg = await db.collection('alerts').aggregate([
         { $match: { "mitre_enrichment.technique_id": { $exists: true, $ne: null } } },
@@ -47,7 +54,7 @@ export async function GET(request: NextRequest) {
         }
       ]).toArray();
 
-      const mitreTechniques: Record<string, any> = {};
+      const mitreTechniques: Record<string, { name: string; tactic: string; count: number; max_severity: string }> = {};
       mitreAgg.forEach(item => {
         let maxSev = 'LOW';
         let maxRank = 0;
@@ -70,7 +77,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build filter query
-    const matchQuery: any = {};
+    const matchQuery: Record<string, unknown> = {};
     if (techniqueParam) {
       matchQuery["mitre_enrichment.technique_id"] = techniqueParam;
     }
@@ -86,7 +93,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build the aggregation pipeline
-    const pipeline: any[] = [];
+    const pipeline: Document[] = [];
 
     if (Object.keys(matchQuery).length > 0) {
       pipeline.push({ $match: matchQuery });
@@ -109,7 +116,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Build the multi-key sort object
-    let sortObj: any = {};
+    let sortObj: Record<string, 1 | -1> = {};
     if (sortConfigs.length > 0) {
         sortConfigs.forEach(config => {
             const order = config.direction === 'asc' ? 1 : -1;

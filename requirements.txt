@@ -1,5 +1,0 @@
-pymongo
-faker
-pyyaml
-mitreattack-python
-requests

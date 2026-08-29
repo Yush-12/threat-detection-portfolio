@@ -1,5 +1,6 @@
 import { X, ShieldAlert, Clock, CheckCircle2, AlertTriangle, FileJson, ExternalLink } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import type { Alert } from '../lib/siem-engine';
 
 const getMitreUrl = (techId: string) => {
   const formatted = techId.replace('.', '/');
@@ -7,9 +8,9 @@ const getMitreUrl = (techId: string) => {
 };
 
 interface AlertDetailDrawerProps {
-  alert: any | null;
+  alert: Alert | null;
   onClose: () => void;
-  onStatusChange: (alertId: string, newStatus: string) => void;
+  onStatusChange: (alertId: string, newStatus: Alert['status']) => void;
 }
 
 export function AlertDetailDrawer({ alert, onClose, onStatusChange }: AlertDetailDrawerProps) {
@@ -28,10 +29,12 @@ export function AlertDetailDrawer({ alert, onClose, onStatusChange }: AlertDetai
 
   if (!alert) return null;
 
-  const handleStatusUpdate = async (newStatus: string) => {
+  const handleStatusUpdate = async (newStatus: Alert['status']) => {
     setUpdating(true);
     try {
-      await onStatusChange(alert._id, newStatus);
+      if (alert._id) {
+        await onStatusChange(alert._id, newStatus);
+      }
     } finally {
       setUpdating(false);
     }
@@ -41,6 +44,9 @@ export function AlertDetailDrawer({ alert, onClose, onStatusChange }: AlertDetai
     <div 
       onClick={onClose}
       className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm transition-opacity cursor-pointer"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="drawer-title"
     >
       <div 
         onClick={(e) => e.stopPropagation()}
@@ -50,7 +56,7 @@ export function AlertDetailDrawer({ alert, onClose, onStatusChange }: AlertDetai
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-800 bg-neutral-900/50">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold text-white">Alert Details</h2>
+            <h2 id="drawer-title" className="text-lg font-bold text-white">Alert Details</h2>
             <span className={`px-2.5 py-1 rounded-full text-xs font-bold tracking-wider
               ${alert.severity?.toLowerCase() === 'critical' ? 'bg-red-600/20 text-red-300 border border-red-400/30' : ''}
               ${alert.severity?.toLowerCase() === 'high' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : ''}
@@ -60,7 +66,7 @@ export function AlertDetailDrawer({ alert, onClose, onStatusChange }: AlertDetai
               {alert.severity?.toUpperCase() || 'UNKNOWN'}
             </span>
           </div>
-          <button onClick={onClose} className="p-2 text-neutral-400 hover:text-white rounded-lg hover:bg-neutral-800 transition-colors">
+          <button onClick={onClose} aria-label="Close drawer" className="p-2 text-neutral-400 hover:text-white rounded-lg hover:bg-neutral-800 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>

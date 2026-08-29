@@ -1,8 +1,9 @@
 import { Search, ArrowUp, ArrowDown, ArrowUpDown, ShieldAlert, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import type { Pagination } from '../page';
+import type { Alert } from '../lib/siem-engine';
 
 interface AlertsTableProps {
-  alerts: any[];
+  alerts: Alert[];
   pagination: Pagination | null;
   loading: boolean;
   searchTerm: string;
@@ -14,7 +15,7 @@ interface AlertsTableProps {
   goToPage: (page: number) => void;
   handleGenerate: () => void;
   generating: boolean;
-  onRowClick?: (alert: any) => void;
+  onRowClick?: (alert: Alert) => void;
 }
 
 export function AlertsTable({
@@ -100,6 +101,7 @@ export function AlertsTable({
           <input
             id="search-alerts"
             type="text"
+            aria-label="Search alerts"
             placeholder="Search User, IP, or Rule..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -141,11 +143,18 @@ export function AlertsTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-800/50">
-            {sortedAlerts && sortedAlerts.map((alert: any, idx: number) => (
+            {sortedAlerts && sortedAlerts.map((alert: Alert, idx: number) => (
               <tr 
                 key={idx} 
                 onClick={() => onRowClick?.(alert)}
-                className={`hover:bg-neutral-800/20 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onRowClick?.(alert);
+                  }
+                }}
+                tabIndex={onRowClick ? 0 : undefined}
+                className={`hover:bg-neutral-800/20 transition-colors focus:outline-none focus:bg-neutral-800/40 ${onRowClick ? 'cursor-pointer' : ''}`}
               >
                 <td className="px-6 py-4 text-neutral-400 font-mono text-xs">
                   {new Date(alert.timestamp).toLocaleString()}

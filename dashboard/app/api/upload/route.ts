@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runPipeline, RawLog } from '../../lib/siem-engine';
 import { getDb } from '../../lib/mongodb';
+import { checkRateLimit, getClientIp } from '../../lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    // Allow 5 uploads per minute
+    if (!checkRateLimit(`upload_${ip}`, 5, 60000)) {
+      return NextResponse.json({ error: 'Rate limit exceeded for uploads. Please wait a minute.' }, { status: 429 });
+    }
     // Parse the uploaded file from FormData
     const formData = await request.formData();
     const file = formData.get('file') as File | null;

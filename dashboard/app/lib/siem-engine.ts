@@ -202,6 +202,7 @@ export function generateSyntheticLogs(): RawLog[] {
 
 // ─── Rule Evaluation Engine ─────────────────────────────────────────────────
 export interface Alert {
+  _id?: string;
   timestamp: string;
   rule_title: string;
   hit_log: RawLog;
@@ -239,7 +240,7 @@ export function evaluateRules(logs: RawLog[], rules: SigmaRule[]): Alert[] {
         groupedLogs[key].push(log);
       }
 
-      for (const [key, group] of Object.entries(groupedLogs)) {
+      for (const group of Object.values(groupedLogs)) {
         let windowStartIdx = 0;
         let windowEndIdx = 0;
 
@@ -312,7 +313,7 @@ export interface DashboardMetrics {
   alert_counts_by_severity: Record<string, number>;
   top_mitre_techniques: Record<string, number>;
   alert_counts_by_status: Record<string, number>;
-  mitre_techniques?: Record<string, { name: string; tactic: string; count: number; max_severity?: string }>;
+  mitre_techniques?: Record<string, { name: string; tactic: string; count: number; max_severity: string }>;
 }
 
 export const SEVERITY_RANK: Record<string, number> = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
@@ -385,7 +386,7 @@ export async function runPipeline(db: Db, logs: RawLog[], clearExisting: boolean
 
   // Insert alerts
   if (alerts.length > 0) {
-    await db.collection('alerts').insertMany(alerts);
+    await db.collection('alerts').insertMany(alerts as unknown as Document[]);
   }
 
   // Compute and store metrics — recompute from ALL alerts in DB

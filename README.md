@@ -76,21 +76,28 @@ The pipeline evaluates **7 Sigma-format detection rules** against the raw log da
 
 ## 📁 Log Upload Format
 
-To use the **"Upload Logs"** feature, provide a `.json` file containing an array of log objects. Use the included `sample_logs.json` as a template.
+To use the **"Upload Logs"** feature, provide a `.json` file containing an array of log objects. Use the example below as a template.
 
-### Required Schema:
+### Example Logs:
 ```json
 [
   {
-    "action": "string",      // REQUIRED: 'login_failed', 'high_value_transfer', 'role_change', etc.
-    "user": "string",        // Optional
-    "ip_address": "string",  // Optional
-    "timestamp": "ISO-8601", // Optional (defaults to current time)
-    "location": "string",    // Optional
-    "device": "string",      // Optional
-    "amount": 150000,        // Optional (for transfer actions)
-    "old_role": "analyst",   // Optional (for role change actions)
-    "new_role": "superadmin" // Optional (for role change actions)
+    "timestamp": "2026-05-08T10:00:00Z",
+    "user": "security_test_user",
+    "action": "login_failed",
+    "ip_address": "192.168.1.100",
+    "location": "United States",
+    "device": "desktop"
+  },
+  {
+    "timestamp": "2026-05-08T10:05:00Z",
+    "user": "security_test_user",
+    "action": "high_value_transfer",
+    "ip_address": "192.168.1.100",
+    "location": "United States",
+    "device": "desktop",
+    "amount": 75000.50,
+    "destination_account": "GB123456789"
   }
 ]
 ```
@@ -150,10 +157,6 @@ threat-detection-portfolio/
 │   │   ├── page.tsx               # Main Dashboard page
 │   │   └── layout.tsx             # Root layout
 │   └── public/                    # Static assets
-├── rules/                         # Sigma Rule Definitions (YAML)
-├── run_siem_pipeline.py           # Python SIEM Engine (batch automation)
-├── sample_logs.json               # Reference template for uploads
-├── requirements.txt               # Python dependencies
 └── README.md
 ```
 

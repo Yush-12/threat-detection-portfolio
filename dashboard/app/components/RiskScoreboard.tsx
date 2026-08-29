@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ShieldAlert, User, Globe, AlertTriangle } from 'lucide-react';
+import { User, Globe, AlertTriangle } from 'lucide-react';
 
 interface EntityRisk {
   entity_id: string;
@@ -12,7 +12,7 @@ interface EntityRisk {
 }
 
 interface RiskScoreboardProps {
-  refreshTrigger?: any;
+  refreshTrigger?: string | null;
 }
 
 export function RiskScoreboard({ refreshTrigger }: RiskScoreboardProps = {}) {
