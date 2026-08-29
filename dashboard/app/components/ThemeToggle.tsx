@@ -19,18 +19,58 @@ export function ThemeToggle() {
     );
   }
 
+  const toggleTheme = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+
+    // If browser supports View Transitions API, execute circular ripple reveal
+    if (typeof document !== "undefined" && "startViewTransition" in document) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      const endRadius = Math.hypot(
+        Math.max(x, window.innerWidth - x),
+        Math.max(y, window.innerHeight - y)
+      );
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const transition = (document as any).startViewTransition(() => {
+        setTheme(nextTheme);
+      });
+
+      transition.ready.then(() => {
+        document.documentElement.animate(
+          {
+            clipPath: [
+              `circle(0px at ${x}px ${y}px)`,
+              `circle(${endRadius}px at ${x}px ${y}px)`,
+            ],
+          },
+          {
+            duration: 400,
+            easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+            pseudoElement: "::view-transition-new(root)",
+          }
+        );
+      });
+    } else {
+      setTheme(nextTheme);
+    }
+  };
+
   return (
     <button
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      onClick={toggleTheme}
       aria-label="Toggle theme"
-      className="p-2.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-slate-50 dark:hover:bg-neutral-700 text-slate-700 dark:text-neutral-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-neutral-700 transition-all flex items-center justify-center shadow-xs"
+      className="p-2.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-slate-50 dark:hover:bg-neutral-700 text-slate-700 dark:text-neutral-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-neutral-700 transition-all duration-300 flex items-center justify-center shadow-xs group"
       title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
     >
-      {theme === "dark" ? (
-        <Sun className="w-4 h-4 text-amber-400" />
-      ) : (
-        <Moon className="w-4 h-4 text-indigo-600" />
-      )}
+      <div className="relative w-4 h-4 flex items-center justify-center transition-transform duration-500 group-hover:rotate-45">
+        {theme === "dark" ? (
+          <Sun className="w-4 h-4 text-amber-400 animate-scale-in" />
+        ) : (
+          <Moon className="w-4 h-4 text-indigo-600 animate-scale-in" />
+        )}
+      </div>
     </button>
   );
 }
