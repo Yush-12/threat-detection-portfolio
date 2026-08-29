@@ -11,7 +11,11 @@ interface EntityRisk {
   top_technique: string;
 }
 
-export function RiskScoreboard() {
+interface RiskScoreboardProps {
+  refreshTrigger?: any;
+}
+
+export function RiskScoreboard({ refreshTrigger }: RiskScoreboardProps = {}) {
   const [data, setData] = useState<EntityRisk[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -22,7 +26,7 @@ export function RiskScoreboard() {
         if (json.success) setData(json.data);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [refreshTrigger]);
 
   if (loading) return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl h-64 animate-pulse flex items-center justify-center">

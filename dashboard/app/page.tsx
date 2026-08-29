@@ -340,7 +340,7 @@ export default function Dashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
           <SeverityChart metrics={data.metrics} />
-          <RiskScoreboard />
+          <RiskScoreboard refreshTrigger={data.metrics?.timestamp} />
         </div>
 
         <div className="mt-6">

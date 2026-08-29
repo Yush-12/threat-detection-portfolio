@@ -66,8 +66,8 @@ export async function POST(request: NextRequest) {
 
     const db = await getDb();
 
-    // Run pipeline — do NOT clear existing data, append uploaded logs
-    const result = await runPipeline(db, normalizedLogs, false);
+    // Run pipeline — clear existing data so only uploaded logs are evaluated
+    const result = await runPipeline(db, normalizedLogs, true);
 
     return NextResponse.json({
       success: true,
