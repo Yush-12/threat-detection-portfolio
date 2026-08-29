@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useDeferredValue } from 'react';
 import { ShieldCheck, AlertTriangle, RefreshCw, Upload, Info, Zap, ShieldAlert } from 'lucide-react';
 import { MetricCards } from './components/MetricCards';
 import { SeverityChart } from './components/SeverityChart';
@@ -31,6 +31,7 @@ export default function Dashboard() {
   const [page, setPage] = useState(1);
   const [sortConfigs, setSortConfigs] = useState<{ key: string; direction: 'asc' | 'desc' }[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const deferredSearch = useDeferredValue(searchTerm);
   const [selectedTechnique, setSelectedTechnique] = useState<string | null>(null);
 
   // Action states
@@ -45,7 +46,7 @@ export default function Dashboard() {
   const fetchData = useCallback(async (
     pageNum: number = 1,
     currentSorts: { key: string; direction: 'asc' | 'desc' }[] = sortConfigs,
-    query: string = searchTerm,
+    query: string = deferredSearch,
     tech: string | null = selectedTechnique
   ) => {
     try {
@@ -63,15 +64,12 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [sortConfigs, searchTerm, selectedTechnique]);
+  }, [sortConfigs, deferredSearch, selectedTechnique]);
 
-  // Initial load and filter change trigger
+  // Reactive data fetch on search or MITRE technique filter change
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchData(1, sortConfigs, searchTerm, selectedTechnique);
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [searchTerm, selectedTechnique]);
+    fetchData(1, sortConfigs, deferredSearch, selectedTechnique);
+  }, [deferredSearch, selectedTechnique]);
 
   // Auto-dismiss status messages
   useEffect(() => {
