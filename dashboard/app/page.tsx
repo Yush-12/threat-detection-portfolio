@@ -8,7 +8,14 @@ import { MitreHeatmap } from './components/MitreHeatmap';
 import { RiskScoreboard } from './components/RiskScoreboard';
 import { AlertsTable } from './components/AlertsTable';
 import { AlertDetailDrawer } from './components/AlertDetailDrawer';
-import type { Alert, DashboardMetrics } from './lib/siem-engine';
+import { TimelineChart } from './components/TimelineChart';
+import { GeoMap } from './components/GeoMap';
+import { LiveActivityFeed } from './components/LiveActivityFeed';
+import { IncidentsSection } from './components/IncidentsSection';
+import { InvestigationDrawer } from './components/InvestigationDrawer';
+import { ExportDropdown } from './components/ExportDropdown';
+import { ThemeToggle } from './components/ThemeToggle';
+import type { Alert, DashboardMetrics, Incident } from './lib/siem-engine';
 
 export interface Pagination {
   currentPage: number;
@@ -22,6 +29,7 @@ export interface Pagination {
 interface DashboardData {
   metrics: DashboardMetrics;
   alerts: Alert[];
+  incidents?: Incident[];
   pagination: Pagination;
   error?: string;
 }
@@ -40,6 +48,7 @@ export default function Dashboard() {
   const [uploading, setUploading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+  const [investigatingEntity, setInvestigatingEntity] = useState<{ id: string; type: 'user' | 'ip'; score?: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const ITEMS_PER_PAGE = 25;
@@ -184,7 +193,6 @@ export default function Dashboard() {
       });
       const json = await res.json();
       if (json.success) {
-        // Update local state for immediate feedback
         if (data) {
           const newAlerts = data.alerts.map(a => 
             a._id === alertId ? { ...a, status: newStatus } : a
@@ -195,7 +203,6 @@ export default function Dashboard() {
             setSelectedAlert({ ...selectedAlert, status: newStatus });
           }
         }
-        // Fetch fresh data in background to update metrics
         fetchData(page, sortConfigs);
         setStatusMessage({ text: 'Status updated successfully', type: 'success' });
       } else {
@@ -238,24 +245,37 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 p-6 md:p-12 font-sans selection:bg-indigo-500/30">
+    <div className="min-h-screen bg-slate-50 dark:bg-neutral-950 text-slate-900 dark:text-neutral-100 p-4 md:p-8 lg:p-12 font-sans selection:bg-indigo-500/30">
       <div className="max-w-7xl mx-auto space-y-8">
 
         {/* Header */}
-        <header className="flex flex-col gap-2 border-b border-neutral-800 pb-6">
+        <header className="flex flex-col gap-3 border-b border-slate-200 dark:border-neutral-800 pb-6">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
-              <ShieldCheck className="w-8 h-8 text-indigo-500" />
-              <h1 className="text-3xl font-bold tracking-tight text-white">SIEM Dashboard</h1>
+              <ShieldCheck className="w-8 h-8 text-indigo-600 dark:text-indigo-500" />
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">SIEM Dashboard</h1>
+                <p className="text-slate-500 dark:text-neutral-400 text-xs font-semibold tracking-wide uppercase mt-0.5">
+                  Autonomous Threat Detection & Intelligence
+                </p>
+              </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-3">
+            {/* Action Buttons & Utilities */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <ExportDropdown 
+                alerts={data.alerts} 
+                metrics={data.metrics} 
+                incidents={data.incidents} 
+              />
+
+              <ThemeToggle />
+
               <button
                 id="generate-logs-btn"
                 onClick={handleGenerate}
                 disabled={generating || uploading}
-                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40"
+                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-indigo-500/20 hover:shadow-indigo-500/40"
               >
                 {generating ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
@@ -268,7 +288,7 @@ export default function Dashboard() {
               <div className="relative group/upload">
                 <label
                   id="upload-logs-btn"
-                  className={`flex items-center gap-2 px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 rounded-xl text-neutral-200 text-sm font-semibold transition-all cursor-pointer border border-neutral-700 hover:border-neutral-600 ${(uploading || generating) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-neutral-800 hover:bg-slate-50 dark:hover:bg-neutral-700 active:bg-slate-100 dark:active:bg-neutral-600 rounded-xl text-slate-800 dark:text-neutral-200 text-sm font-semibold transition-all cursor-pointer border border-slate-200 dark:border-neutral-700 hover:border-slate-300 dark:hover:border-neutral-600 shadow-xs ${(uploading || generating) ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {uploading ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
@@ -288,37 +308,29 @@ export default function Dashboard() {
                 
                 {/* Info Tooltip Icon */}
                 <div className="absolute -top-1 -right-1 group/tooltip">
-                  <div className="p-1 bg-neutral-900 border border-neutral-700 rounded-full text-indigo-400 shadow-lg cursor-help hover:text-indigo-300 transition-colors">
+                  <div className="p-1 bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-700 rounded-full text-indigo-600 dark:text-indigo-400 shadow-sm cursor-help hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
                     <Info className="w-3 h-3" />
                   </div>
                   
-                  {/* Tooltip Content */}
-                  <div className="absolute top-8 right-0 w-64 p-4 bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl z-50 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 translate-y-2 group-hover/tooltip:translate-y-0">
-                    <h4 className="text-xs font-bold text-white mb-2 uppercase tracking-wider">Log Upload Format</h4>
-                    <p className="text-[11px] text-neutral-400 mb-3 leading-relaxed">
-                      Upload a <code className="text-indigo-400">.json</code> file with an array of objects. Required field: <code className="text-indigo-400">&quot;action&quot;</code>.
+                  <div className="absolute top-8 right-0 w-64 p-4 bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl shadow-2xl z-50 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 translate-y-2 group-hover/tooltip:translate-y-0">
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white mb-2 uppercase tracking-wider">Log Upload Format</h4>
+                    <p className="text-[11px] text-slate-600 dark:text-neutral-400 mb-3 leading-relaxed">
+                      Upload a <code className="text-indigo-600 dark:text-indigo-400 font-mono">.json</code> file with an array of objects. Required field: <code className="text-indigo-600 dark:text-indigo-400 font-mono">&quot;action&quot;</code>.
                     </p>
                     <div className="space-y-2">
-                      <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-tighter">Triggers:</p>
-                      <ul className="text-[10px] space-y-1 text-neutral-300">
-                        <li><span className="text-red-400 font-mono">&quot;high_value_transfer&quot;</span> → Critical</li>
-                        <li><span className="text-red-400 font-mono">&quot;role_change&quot;</span> → Critical</li>
-                        <li><span className="text-orange-400 font-mono">&quot;login_failed&quot;</span> → High</li>
-                        <li><span className="text-blue-400 font-mono">&quot;login_success&quot;</span> → Low</li>
+                      <p className="text-[10px] font-semibold text-slate-500 dark:text-neutral-500 uppercase tracking-tighter">Triggers:</p>
+                      <ul className="text-[10px] space-y-1 text-slate-700 dark:text-neutral-300">
+                        <li><span className="text-rose-600 dark:text-red-400 font-mono font-semibold">&quot;high_value_transfer&quot;</span> → Critical</li>
+                        <li><span className="text-rose-600 dark:text-red-400 font-mono font-semibold">&quot;role_change&quot;</span> → Critical</li>
+                        <li><span className="text-orange-600 dark:text-orange-400 font-mono font-semibold">&quot;login_failed&quot;</span> → High</li>
+                        <li><span className="text-blue-600 dark:text-blue-400 font-mono font-semibold">&quot;login_success&quot;</span> → Low</li>
                       </ul>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-neutral-800 text-[10px] text-neutral-500 italic">
-                      Check root folder for sample_logs.json
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-
-          <p className="text-neutral-400 text-sm font-medium tracking-wide uppercase">
-            Real-time threat detection & analysis
-          </p>
 
           {/* Status Toast */}
           {statusMessage && (
@@ -337,14 +349,36 @@ export default function Dashboard() {
           )}
         </header>
 
+        {/* Correlated Incidents Banner */}
+        <IncidentsSection 
+          incidents={data.incidents} 
+          onEntityClick={(ent) => setInvestigatingEntity(ent)} 
+        />
+
+        {/* Top Key Metrics */}
         <MetricCards metrics={data.metrics} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          <SeverityChart metrics={data.metrics} />
-          <RiskScoreboard refreshTrigger={data.metrics?.timestamp} />
+        {/* Real-time Timeline & Threat Map Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <TimelineChart alerts={data.alerts} />
+          <GeoMap alerts={data.alerts} />
         </div>
 
-        <div className="mt-6">
+        {/* Severity Donut, Risky Leaderboard & Live Feed */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <SeverityChart metrics={data.metrics} />
+          <RiskScoreboard 
+            refreshTrigger={data.metrics?.timestamp} 
+            onEntityClick={(ent) => setInvestigatingEntity(ent)} 
+          />
+          <LiveActivityFeed 
+            alerts={data.alerts} 
+            onAlertClick={(a) => setSelectedAlert(a)} 
+          />
+        </div>
+
+        {/* Interactive MITRE ATT&CK Matrix */}
+        <div>
           <MitreHeatmap 
             alerts={data.alerts}
             metrics={data.metrics}
@@ -353,7 +387,8 @@ export default function Dashboard() {
           />
         </div>
 
-        <div className="mt-6">
+        {/* Interactive Alerts Table */}
+        <div>
           <AlertsTable 
             alerts={data.alerts}
             pagination={data.pagination}
@@ -373,11 +408,20 @@ export default function Dashboard() {
 
       </div>
 
+      {/* Alert Detail Drawer */}
       <AlertDetailDrawer
         alert={selectedAlert}
         onClose={() => setSelectedAlert(null)}
         onStatusChange={handleStatusChange}
       />
+
+      {/* Deep Threat Investigation Drawer */}
+      <InvestigationDrawer
+        entity={investigatingEntity}
+        alerts={data.alerts}
+        onClose={() => setInvestigatingEntity(null)}
+      />
     </div>
   );
 }
+

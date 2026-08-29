@@ -118,18 +118,19 @@ export interface RawLog {
 
 export function generateSyntheticLogs(): RawLog[] {
   const logs: RawLog[] = [];
+  const now = Date.now();
 
   // Randomized counts for variety
-  const normalCount = faker.number.int({ min: 300, max: 600 });
-  const bruteForceCount = faker.number.int({ min: 20, max: 60 });
-  const successMonitorCount = faker.number.int({ min: 10, max: 40 });
-  const highValueCount = faker.number.int({ min: 5, max: 25 });
-  const roleChangeCount = faker.number.int({ min: 5, max: 20 });
+  const normalCount = faker.number.int({ min: 350, max: 600 });
+  const bruteForceBursts = faker.number.int({ min: 3, max: 6 });
+  const highValueCount = faker.number.int({ min: 8, max: 20 });
+  const roleChangeCount = faker.number.int({ min: 5, max: 15 });
 
-  // ~Normal banking logs
+  // ~Normal banking logs distributed over last 7 days
   for (let i = 0; i < normalCount; i++) {
+    const randomPastMs = faker.number.int({ min: 0, max: 7 * 24 * 3600 * 1000 });
     logs.push({
-      timestamp: faker.date.recent({ days: 30 }).toISOString(),
+      timestamp: new Date(now - randomPastMs).toISOString(),
       user: faker.internet.username(),
       action: faker.helpers.arrayElement(['login_success', 'transfer', 'balance_check', 'logout']),
       ip_address: faker.internet.ipv4(),
@@ -138,55 +139,72 @@ export function generateSyntheticLogs(): RawLog[] {
     });
   }
 
-  // ~Credential Stuffing / Brute Force
-  const badIp = faker.internet.ipv4();
-  const baseTime = faker.date.recent({ days: 30 });
-  for (let i = 0; i < bruteForceCount; i++) {
-    const t = new Date(baseTime.getTime() + i * 2000);
+  // ~Multiple Brute Force / Credential Stuffing Bursts on distinct days/hours
+  for (let b = 0; b < bruteForceBursts; b++) {
+    const burstIp = faker.internet.ipv4();
+    const burstCountry = faker.location.country();
+    const burstTimeOffset = faker.number.int({ min: 3600 * 1000, max: 6 * 24 * 3600 * 1000 });
+    const burstStart = now - burstTimeOffset;
+    const burstCount = faker.number.int({ min: 12, max: 25 });
+
+    for (let i = 0; i < burstCount; i++) {
+      const t = new Date(burstStart + i * 3000); // 3-second spacing
+      logs.push({
+        timestamp: t.toISOString(),
+        user: faker.internet.username(),
+        action: 'login_failed',
+        ip_address: burstIp,
+        location: burstCountry,
+        device: 'desktop',
+      });
+    }
+  }
+
+  // ~Impossible Travel scenarios (2 logins within 30 min in different countries)
+  for (let it = 0; it < 4; it++) {
+    const itUser = faker.internet.username();
+    const itOffset = faker.number.int({ min: 7200 * 1000, max: 5 * 24 * 3600 * 1000 });
+    const itTime = now - itOffset;
+
     logs.push({
-      timestamp: t.toISOString(),
-      user: faker.internet.username(),
-      action: 'login_failed',
-      ip_address: badIp,
-      location: faker.location.country(),
+      timestamp: new Date(itTime).toISOString(),
+      user: itUser,
+      action: 'login_success',
+      ip_address: faker.internet.ipv4(),
+      location: 'United States',
+      device: 'mobile',
+    });
+
+    logs.push({
+      timestamp: new Date(itTime + 15 * 60 * 1000).toISOString(), // 15 mins later
+      user: itUser,
+      action: 'login_success',
+      ip_address: faker.internet.ipv4(),
+      location: 'Japan',
       device: 'desktop',
     });
   }
 
-  // ~Login success monitoring
-  const victimUser = faker.internet.username();
-  for (let i = 0; i < successMonitorCount; i++) {
-    const t = new Date(baseTime.getTime() + i * 600000);
-    logs.push({
-      timestamp: t.toISOString(),
-      user: victimUser,
-      action: 'login_success',
-      ip_address: faker.internet.ipv4(),
-      location: faker.location.country(),
-      device: 'mobile',
-    });
-  }
-
-  // ~High-Value Transfer logs
+  // ~High-Value Transfers spread over last 7 days
   for (let i = 0; i < highValueCount; i++) {
-    const t = new Date(baseTime.getTime() + i * 10800000);
+    const randomPastMs = faker.number.int({ min: 0, max: 6 * 24 * 3600 * 1000 });
     logs.push({
-      timestamp: t.toISOString(),
+      timestamp: new Date(now - randomPastMs).toISOString(),
       user: faker.internet.username(),
       action: 'high_value_transfer',
       ip_address: faker.internet.ipv4(),
       location: faker.location.country(),
       device: faker.helpers.arrayElement(['mobile', 'desktop']),
-      amount: Math.round(faker.number.float({ min: 50000, max: 500000 }) * 100) / 100,
+      amount: Math.round(faker.number.float({ min: 75000, max: 750000 }) * 100) / 100,
       destination_account: faker.finance.iban(),
     });
   }
 
-  // ~Privilege Escalation logs
+  // ~Privilege Escalation logs spread over last 7 days
   for (let i = 0; i < roleChangeCount; i++) {
-    const t = new Date(baseTime.getTime() + i * 21600000);
+    const randomPastMs = faker.number.int({ min: 0, max: 6 * 24 * 3600 * 1000 });
     logs.push({
-      timestamp: t.toISOString(),
+      timestamp: new Date(now - randomPastMs).toISOString(),
       user: faker.internet.username(),
       action: 'role_change',
       ip_address: faker.internet.ipv4(),
@@ -197,7 +215,8 @@ export function generateSyntheticLogs(): RawLog[] {
     });
   }
 
-  return logs;
+  // Sort logs chronologically
+  return logs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 }
 
 // ─── Rule Evaluation Engine ─────────────────────────────────────────────────
@@ -249,17 +268,16 @@ export function evaluateRules(logs: RawLog[], rules: SigmaRule[]): Alert[] {
           const endTime = new Date(group[windowEndIdx].timestamp).getTime();
 
           if (endTime - startTime <= rule.threshold.timeWindowMs) {
-            // Wait, for Impossible Travel, we need location diversity
             if (rule.title === 'Impossible Travel') {
                const locations = new Set(group.slice(windowStartIdx, windowEndIdx + 1).map(l => l.location));
                if (locations.size >= 2) {
                  createAlert(rule, group[windowEndIdx], alerts, now);
-                 windowStartIdx = windowEndIdx + 1; // reset window to avoid duplicate alerts
+                 windowStartIdx = windowEndIdx + 1;
                }
             } else {
                if (windowEndIdx - windowStartIdx + 1 >= rule.threshold.count) {
                  createAlert(rule, group[windowEndIdx], alerts, now);
-                 windowStartIdx = windowEndIdx + 1; // reset window
+                 windowStartIdx = windowEndIdx + 1;
                }
             }
             windowEndIdx++;
@@ -296,7 +314,7 @@ function createAlert(rule: SigmaRule, log: RawLog, alerts: Alert[], now: string)
   }
 
   alerts.push({
-    timestamp: now,
+    timestamp: log.timestamp || now,
     rule_title: rule.title,
     hit_log: log,
     confidence_score: Math.floor(Math.random() * 41) + 60, // 60-100
@@ -367,6 +385,83 @@ export function computeMetrics(alerts: Alert[]): DashboardMetrics {
   };
 }
 
+// ─── Incident Correlation Engine ──────────────────────────────────────────
+export interface Incident {
+  _id?: string;
+  incident_id: string;
+  title: string;
+  entity_type: 'user' | 'ip';
+  entity_id: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  status: 'open' | 'investigating' | 'resolved';
+  alert_count: number;
+  tactics: string[];
+  techniques: string[];
+  created_at: string;
+  updated_at: string;
+  summary: string;
+}
+
+export function correlateIncidents(alerts: Alert[]): Incident[] {
+  const incidents: Incident[] = [];
+  const entityAlerts: Record<string, { type: 'user' | 'ip'; alerts: Alert[] }> = {};
+
+  for (const alert of alerts) {
+    if (alert.hit_log.user) {
+      const uKey = `user:${alert.hit_log.user}`;
+      if (!entityAlerts[uKey]) entityAlerts[uKey] = { type: 'user', alerts: [] };
+      entityAlerts[uKey].alerts.push(alert);
+    }
+    if (alert.hit_log.ip_address) {
+      const ipKey = `ip:${alert.hit_log.ip_address}`;
+      if (!entityAlerts[ipKey]) entityAlerts[ipKey] = { type: 'ip', alerts: [] };
+      entityAlerts[ipKey].alerts.push(alert);
+    }
+  }
+
+  let incidentSeq = 1;
+  const now = new Date().toISOString();
+
+  for (const [key, { type, alerts: aList }] of Object.entries(entityAlerts)) {
+    const entityId = key.replace(/^(user|ip):/, '');
+    
+    // Correlate if 2+ alerts with varied techniques or high severity
+    const tactics = Array.from(new Set(aList.map(a => a.mitre_enrichment?.tactic).filter(Boolean))) as string[];
+    const techniques = Array.from(new Set(aList.map(a => a.mitre_enrichment?.technique_id).filter(Boolean))) as string[];
+    const maxRank = Math.max(...aList.map(a => SEVERITY_RANK[(a.severity || 'low').toUpperCase()] || 1));
+    
+    const isCritical = maxRank === 4;
+    const isMultiStage = tactics.length >= 2 || aList.length >= 3;
+
+    if ((isCritical && aList.length >= 2) || isMultiStage) {
+      let severity: Incident['severity'] = 'medium';
+      if (maxRank === 4 || (maxRank === 3 && aList.length >= 4)) severity = 'critical';
+      else if (maxRank === 3 || aList.length >= 3) severity = 'high';
+
+      const title = type === 'user' 
+        ? `Coordinated Account Takeover / Abuse: ${entityId}`
+        : `Multi-Vector Incursion from Host: ${entityId}`;
+
+      incidents.push({
+        incident_id: `INC-${String(incidentSeq++).padStart(4, '0')}`,
+        title,
+        entity_type: type,
+        entity_id: entityId,
+        severity,
+        status: 'open',
+        alert_count: aList.length,
+        tactics,
+        techniques,
+        created_at: aList[0]?.timestamp || now,
+        updated_at: now,
+        summary: `Correlated ${aList.length} security alerts spanning ${tactics.length} MITRE ATT&CK tactics (${tactics.join(', ')}).`,
+      });
+    }
+  }
+
+  return incidents.sort((a, b) => (SEVERITY_RANK[b.severity.toUpperCase()] || 0) - (SEVERITY_RANK[a.severity.toUpperCase()] || 0));
+}
+
 // ─── Full Pipeline (used by both generate and upload) ───────────────────────
 export async function runPipeline(db: Db, logs: RawLog[], clearExisting: boolean = true) {
   const start = Date.now();
@@ -374,6 +469,7 @@ export async function runPipeline(db: Db, logs: RawLog[], clearExisting: boolean
   if (clearExisting) {
     await db.collection('raw_logs').deleteMany({});
     await db.collection('alerts').deleteMany({});
+    await db.collection('incidents').deleteMany({});
   }
 
   // Insert logs
@@ -389,8 +485,15 @@ export async function runPipeline(db: Db, logs: RawLog[], clearExisting: boolean
     await db.collection('alerts').insertMany(alerts as unknown as Document[]);
   }
 
-  // Compute and store metrics — recompute from ALL alerts in DB
+  // Correlate Incidents
   const allAlerts = await db.collection('alerts').find({}).toArray() as unknown as Alert[];
+  const incidents = correlateIncidents(allAlerts);
+  if (incidents.length > 0) {
+    await db.collection('incidents').deleteMany({});
+    await db.collection('incidents').insertMany(incidents as unknown as Document[]);
+  }
+
+  // Compute and store metrics — recompute from ALL alerts in DB
   const metrics = computeMetrics(allAlerts);
   await db.collection('dashboard_metrics').deleteMany({});
   await db.collection('dashboard_metrics').insertOne(metrics);
@@ -401,6 +504,7 @@ export async function runPipeline(db: Db, logs: RawLog[], clearExisting: boolean
     totalLogs: logs.length,
     totalAlerts: alerts.length,
     totalAlertsInDb: allAlerts.length,
+    totalIncidents: incidents.length,
     duration: `${duration}s`,
   };
 }

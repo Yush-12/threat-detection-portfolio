@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useMemo } from 'react';
 import type { Alert, DashboardMetrics } from '../lib/siem-engine';
 
@@ -34,7 +36,6 @@ export function MitreHeatmap({ alerts, metrics, selectedTechnique, onFilterChang
   const heatmapData = useMemo(() => {
     const data: Record<string, Record<string, { name: string; count: number; severity: string }>> = {};
     
-    // Initialize tactics
     MITRE_TACTICS.forEach(tactic => {
       data[tactic] = {};
     });
@@ -62,7 +63,6 @@ export function MitreHeatmap({ alerts, metrics, selectedTechnique, onFilterChang
           if (!data[tactic][techId]) {
             data[tactic][techId] = { name: enrichment.name || 'Unknown', count: 0, severity: sev };
           } else {
-            // Keep highest severity
             const rank: Record<string, number> = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
             if ((rank[sev] || 0) > (rank[data[tactic][techId].severity] || 0)) {
               data[tactic][techId].severity = sev;
@@ -86,32 +86,31 @@ export function MitreHeatmap({ alerts, metrics, selectedTechnique, onFilterChang
     }
   };
 
-  // Helper to determine cell color based on severity
   const getCellColor = (severity: string) => {
     switch (severity?.toUpperCase()) {
       case 'CRITICAL':
-        return 'bg-rose-950/60 border-rose-500/50 text-rose-100 hover:border-rose-400 hover:bg-rose-900/60 shadow-[0_0_15px_rgba(244,63,94,0.2)]';
+        return 'bg-rose-50 dark:bg-rose-950/60 border-rose-300 dark:border-rose-500/50 text-rose-900 dark:text-rose-100 hover:border-rose-500 dark:hover:border-rose-400';
       case 'HIGH':
-        return 'bg-orange-950/60 border-orange-500/50 text-orange-100 hover:border-orange-400 hover:bg-orange-900/60 shadow-[0_0_15px_rgba(249,115,22,0.2)]';
+        return 'bg-orange-50 dark:bg-orange-950/60 border-orange-300 dark:border-orange-500/50 text-orange-900 dark:text-orange-100 hover:border-orange-500 dark:hover:border-orange-400';
       case 'MEDIUM':
-        return 'bg-amber-950/50 border-amber-500/40 text-amber-100 hover:border-amber-400 hover:bg-amber-900/50';
+        return 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-500/40 text-amber-900 dark:text-amber-100 hover:border-amber-500 dark:hover:border-amber-400';
       case 'LOW':
       default:
-        return 'bg-blue-950/50 border-blue-500/40 text-blue-100 hover:border-blue-400 hover:bg-blue-900/50 shadow-[0_0_12px_rgba(59,130,246,0.15)]';
+        return 'bg-sky-50 dark:bg-blue-950/50 border-sky-300 dark:border-blue-500/40 text-sky-900 dark:text-blue-100 hover:border-sky-500 dark:hover:border-blue-400';
     }
   };
 
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl shadow-black/50 overflow-hidden animate-fade-in-up stagger-3">
+    <div className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-2xl p-6 shadow-sm dark:shadow-xl overflow-hidden animate-fade-in-up stagger-3">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold text-neutral-200">MITRE ATT&CK® Matrix</h3>
-          <p className="text-xs text-neutral-500 mt-1">Color-coded by highest detected severity level</p>
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-neutral-200">MITRE ATT&CK® Matrix</h3>
+          <p className="text-xs text-slate-500 dark:text-neutral-400 mt-1">Color-coded by highest detected severity level</p>
         </div>
         {selectedCell && (
           <button 
             onClick={() => handleCellClick(selectedCell)}
-            className="text-xs px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white transition-colors"
+            className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-neutral-800 hover:bg-slate-200 dark:hover:bg-neutral-700 text-slate-700 dark:text-neutral-300 transition-colors"
           >
             Clear Filter
           </button>
@@ -132,8 +131,8 @@ export function MitreHeatmap({ alerts, metrics, selectedTechnique, onFilterChang
             
             return (
               <div key={tactic} className="flex flex-col gap-2 w-40 flex-shrink-0">
-                <div className="bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-center h-12 flex items-center justify-center">
-                  <span className="text-[11px] font-bold text-neutral-300 uppercase tracking-tight leading-tight">
+                <div className="bg-slate-50 dark:bg-neutral-950 border border-slate-200 dark:border-neutral-800 rounded-lg p-2 text-center h-12 flex items-center justify-center">
+                  <span className="text-[11px] font-bold text-slate-800 dark:text-neutral-300 uppercase tracking-tight leading-tight">
                     {tactic}
                   </span>
                 </div>
@@ -152,7 +151,7 @@ export function MitreHeatmap({ alerts, metrics, selectedTechnique, onFilterChang
                           border rounded-xl p-3 cursor-pointer transition-all duration-200 flex flex-col justify-between min-h-[92px]
                           ${getCellColor(tech.severity)}
                           ${isFaded ? 'opacity-30' : 'opacity-100'}
-                          ${isSelected ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-neutral-900 border-indigo-400' : 'hover:scale-[1.02]'}
+                          ${isSelected ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-white dark:ring-offset-neutral-900 border-indigo-500' : 'hover:scale-[1.02]'}
                         `}
                         title={`${techId}: ${tech.name} (${tech.count} alerts - ${tech.severity})`}
                       >
@@ -160,15 +159,15 @@ export function MitreHeatmap({ alerts, metrics, selectedTechnique, onFilterChang
                           <span className="text-[10px] font-mono font-bold tracking-wider opacity-80 block mb-1">
                             {techId}
                           </span>
-                          <span className="text-xs font-semibold leading-snug line-clamp-2 block text-white/90">
+                          <span className="text-xs font-semibold leading-snug line-clamp-2 block">
                             {tech.name}
                           </span>
                         </div>
                         <div className="mt-2.5 flex items-center justify-between">
-                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-black/40 border border-white/10 text-white/90">
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-black/10 dark:bg-black/40 border border-black/10 dark:border-white/10">
                             {tech.count} {tech.count === 1 ? 'hit' : 'hits'}
                           </span>
-                          <span className="text-[9px] font-mono font-bold uppercase tracking-wider opacity-70">
+                          <span className="text-[9px] font-mono font-bold uppercase tracking-wider opacity-80">
                             {tech.severity}
                           </span>
                         </div>
@@ -176,8 +175,8 @@ export function MitreHeatmap({ alerts, metrics, selectedTechnique, onFilterChang
                     );
                   })
                 ) : (
-                  <div className="border border-dashed border-neutral-800/80 rounded-xl p-3 h-20 flex items-center justify-center opacity-60 bg-neutral-950/20">
-                    <span className="text-[11px] text-neutral-500 font-medium">No data</span>
+                  <div className="border border-dashed border-slate-200 dark:border-neutral-800/80 rounded-xl p-3 h-20 flex items-center justify-center opacity-60 bg-slate-50/50 dark:bg-neutral-950/20">
+                    <span className="text-[11px] text-slate-400 dark:text-neutral-500 font-medium">No data</span>
                   </div>
                 )}
               </div>

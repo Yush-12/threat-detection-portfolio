@@ -145,9 +145,17 @@ export async function GET(request: NextRequest) {
       ])
       .toArray();
 
+    const incidents = await db
+      .collection('incidents')
+      .find({})
+      .sort({ created_at: -1 })
+      .limit(10)
+      .toArray();
+
     return NextResponse.json({
       metrics: latestMetrics,
       alerts,
+      incidents,
       pagination: {
         currentPage: page,
         totalPages,

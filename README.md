@@ -63,8 +63,14 @@ The pipeline evaluates **7 Sigma-format detection rules** against the raw log da
 
 ## 📊 Dashboard Features
 
+- **🧠 Automated Incident Correlation** — Aggregates multi-stage adversary behaviors across rules into correlated high-priority incident campaigns.
 - **🗺️ Interactive MITRE ATT&CK Matrix** — Full 14-tactic grid color-coded by maximum threat severity (Critical = Rose, High = Amber, Low = Blue). Clicking any technique filters the entire dashboard.
-- **🔗 Direct MITRE Knowledge Base Links** — Every technique badge links directly to the official MITRE documentation (`https://attack.mitre.org/techniques/Txxx/`).
+- **📈 Real-Time Alert Timeline** — Multi-layer area chart showing attack bursts and alert volume distribution over time by severity.
+- **🌐 Global Threat Origins Geo Map** — Interactive SVG world map plotting adversary attack locations with pulsing severity-coded geographic bubbles.
+- **🔍 Deep Threat Investigation View** — Drill-down drawer showing entity telemetry, observed locations, device footprints, and chronological correlated security events.
+- **📡 Live Threat Feed** — Real-time telemetry feed with pulsing stream indicator for continuous SOC situational awareness.
+- **📄 Incident Report Exports (PDF & CSV)** — Download professional executive SOC incident reports (PDF) or raw detection logs (CSV).
+- **🌗 Dark / Light Theme Toggle** — Seamlessly switch dashboard themes.
 - **🏆 Entity Risk Scoreboard** — Calculates multi-factor risk scores for Users and IPs based on severity weight, technique diversity multipliers, and exponential time decay.
 - **📋 Alert Detail Drawer & Triage Workflow** — Slide-out inspection panel with one-click status updates (`Open`, `Investigating`, `Resolved`, `False Positive`) and raw JSON event inspector.
 - **⚡ Dynamic Dataset Generation** — Generate 300–600 randomized synthetic logs with realistic banking attack scenarios right in the browser.
@@ -114,7 +120,7 @@ To use the **"Upload Logs"** feature, provide a `.json` file containing an array
 ```bash
 git clone https://github.com/Yush-12/threat-detection-portfolio.git
 cd threat-detection-portfolio/dashboard
-npm install
+npm install --legacy-peer-deps
 ```
 
 ### 2. Set Up Environment Variables
@@ -146,14 +152,23 @@ threat-detection-portfolio/
 │   │   ├── components/
 │   │   │   ├── AlertDetailDrawer.tsx # Slide-in drawer & triage workflow
 │   │   │   ├── AlertsTable.tsx    # Interactive table with multi-sort & search
+│   │   │   ├── ExportDropdown.tsx # PDF and CSV incident reporting
+│   │   │   ├── GeoMap.tsx         # Global threat origins SVG world map
+│   │   │   ├── IncidentsSection.tsx# Correlated multi-stage attack campaigns
+│   │   │   ├── InvestigationDrawer.tsx # Deep threat investigation drawer
+│   │   │   ├── LiveActivityFeed.tsx# Live telemetry stream
 │   │   │   ├── MetricCards.tsx    # Top metric summary cards
 │   │   │   ├── MitreHeatmap.tsx   # 14-tactic severity-coded MITRE matrix
 │   │   │   ├── RiskScoreboard.tsx # Top risky Users and IPs leaderboard
-│   │   │   └── SeverityChart.tsx  # Donut chart & triage status distribution
+│   │   │   ├── SeverityChart.tsx  # Donut chart & triage status distribution
+│   │   │   ├── ThemeProvider.tsx  # Theme provider wrapper
+│   │   │   ├── ThemeToggle.tsx    # Dark/Light mode toggle
+│   │   │   └── TimelineChart.tsx  # Real-time alert volume timeline chart
 │   │   ├── lib/
 │   │   │   ├── mongodb.ts         # Singleton connection pool
+│   │   │   ├── rate-limit.ts      # In-memory sliding window rate limiter
 │   │   │   ├── risk-engine.ts     # Multi-factor entity risk scoring engine
-│   │   │   └── siem-engine.ts     # Sigma rule evaluator & MITRE enrichment
+│   │   │   └── siem-engine.ts     # Sigma rules, MITRE enrichment, incident correlation
 │   │   ├── page.tsx               # Main Dashboard page
 │   │   └── layout.tsx             # Root layout
 │   └── public/                    # Static assets

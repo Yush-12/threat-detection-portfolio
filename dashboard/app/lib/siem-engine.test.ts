@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateSyntheticLogs, evaluateRules, computeMetrics, SIGMA_RULES, RawLog } from './siem-engine';
+import { generateSyntheticLogs, evaluateRules, computeMetrics, correlateIncidents, SIGMA_RULES, RawLog } from './siem-engine';
 
 describe('SIEM Engine Core Logic', () => {
   it('should generate valid synthetic logs', () => {
@@ -65,4 +65,34 @@ describe('SIEM Engine Core Logic', () => {
     expect(metrics.alert_counts_by_severity['CRITICAL']).toBe(1);
     expect(Object.keys(metrics.top_mitre_techniques).length).toBeGreaterThan(0);
   });
+
+  it('should correlate multiple alerts on an entity into high-priority incidents', () => {
+    const sampleLogs: RawLog[] = [
+      {
+        timestamp: new Date().toISOString(),
+        user: 'compromised_admin',
+        action: 'role_change',
+        ip_address: '10.0.0.99',
+        location: 'US',
+        device: 'desktop'
+      },
+      {
+        timestamp: new Date(Date.now() + 60000).toISOString(),
+        user: 'compromised_admin',
+        action: 'high_value_transfer',
+        ip_address: '10.0.0.99',
+        location: 'US',
+        device: 'desktop',
+        amount: 250000
+      }
+    ];
+
+    const alerts = evaluateRules(sampleLogs, SIGMA_RULES);
+    const incidents = correlateIncidents(alerts);
+
+    expect(incidents.length).toBeGreaterThan(0);
+    expect(incidents.some(inc => inc.entity_id === 'compromised_admin' || inc.entity_id === '10.0.0.99')).toBe(true);
+    expect(incidents[0].severity).toBe('critical');
+  });
 });
+
