@@ -1,15 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import {
-  ShieldAlert, Activity, ShieldCheck, AlertTriangle,
-  ArrowUp, ArrowDown, ArrowUpDown, Search,
-  RefreshCw, Upload, ChevronLeft, ChevronRight, Zap, Info
-} from 'lucide-react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell
-} from 'recharts';
+import { ShieldCheck, AlertTriangle, RefreshCw, Upload, Info, Zap, ShieldAlert } from 'lucide-react';
+import { MetricCards } from './components/MetricCards';
+import { SeverityChart } from './components/SeverityChart';
+import { MitreHeatmap } from './components/MitreHeatmap';
+import { RiskScoreboard } from './components/RiskScoreboard';
+import { AlertsTable } from './components/AlertsTable';
+import { AlertDetailDrawer } from './components/AlertDetailDrawer';
 
 interface Pagination {
   currentPage: number;
@@ -38,6 +36,7 @@ export default function Dashboard() {
   const [generating, setGenerating] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [selectedAlert, setSelectedAlert] = useState<any | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const ITEMS_PER_PAGE = 25;
@@ -77,7 +76,6 @@ export default function Dashboard() {
       const json = await res.json();
       if (json.success) {
         setStatusMessage({ text: json.message, type: 'success' });
-        // Refresh dashboard data
         await fetchData(1);
       } else {
         setStatusMessage({ text: json.error || 'Generation failed', type: 'error' });
@@ -114,7 +112,6 @@ export default function Dashboard() {
       setStatusMessage({ text: 'Network error during upload', type: 'error' });
     } finally {
       setUploading(false);
-      // Reset file input
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -122,7 +119,7 @@ export default function Dashboard() {
   // ─── Pagination Handlers ──────────────────────────────────────────────
   const goToPage = (pageNum: number) => {
     setLoading(true);
-    fetchData(pageNum);
+    fetchData(pageNum, sortConfigs);
   };
 
   // ─── Sorting ──────────────────────────────────────────────────────────
@@ -137,14 +134,11 @@ export default function Dashboard() {
     if (isMulti) {
       if (existing) {
         if (existing.direction === 'desc') {
-          // 1st -> 2nd state: DESC to ASC
           newSorts = sortConfigs.map(s => s.key === key ? { ...s, direction: 'asc' as const } : s);
         } else {
-          // 2nd -> 3rd state: ASC to RESET (Remove)
           newSorts = sortConfigs.filter(s => s.key !== key);
         }
       } else {
-        // RESET -> 1st state: Add as DESC
         newSorts = [...sortConfigs, { key, direction: 'desc' }];
       }
     } else {
@@ -152,14 +146,13 @@ export default function Dashboard() {
         if (existing.direction === 'desc') {
           newSorts = [{ key, direction: 'asc' }];
         } else {
-          newSorts = []; // Reset
+          newSorts = [];
         }
       } else {
         newSorts = [{ key, direction: 'desc' }];
       }
     }
 
-    // Default to timestamp desc if no sorts left
     if (newSorts.length === 0) {
         newSorts = [{ key: 'timestamp', direction: 'desc' }];
     }
@@ -168,50 +161,36 @@ export default function Dashboard() {
     fetchData(1, newSorts);
   };
 
-  const getSortedAlerts = () => {
-    if (!data?.alerts) return [];
-
-    let filtered = [...data.alerts];
-    if (searchTerm) {
-      const lowSearch = searchTerm.toLowerCase();
-      filtered = filtered.filter((alert: any) =>
-        alert.rule_title?.toLowerCase().includes(lowSearch) ||
-        alert.hit_log?.user?.toLowerCase().includes(lowSearch) ||
-        alert.hit_log?.ip_address?.toLowerCase().includes(lowSearch)
-      );
-    }
-
-    if (sortConfigs.length === 0) return filtered;
-
-    return filtered.sort((a: any, b: any) => {
-      for (const config of sortConfigs) {
-        let comparison = 0;
-        if (config.key === 'timestamp') {
-          const aTime = new Date(a.timestamp).getTime();
-          const bTime = new Date(b.timestamp).getTime();
-          comparison = config.direction === 'asc' ? aTime - bTime : bTime - aTime;
-        } else if (config.key === 'severity') {
-          const severityScores: Record<string, number> = { 'critical': 4, 'high': 3, 'medium': 2, 'low': 1 };
-          const aScore = severityScores[a.severity?.toLowerCase()] || 0;
-          const bScore = severityScores[b.severity?.toLowerCase()] || 0;
-          comparison = config.direction === 'asc' ? aScore - bScore : bScore - aScore;
-        } else if (config.key === 'confidence_score') {
-          comparison = config.direction === 'asc' ? a.confidence_score - b.confidence_score : b.confidence_score - a.confidence_score;
+  // ─── Status Update Handler ────────────────────────────────────────────
+  const handleStatusChange = async (alertId: string, newStatus: string) => {
+    try {
+      const res = await fetch(`/api/alerts/${alertId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        // Update local state for immediate feedback
+        if (data) {
+          const newAlerts = data.alerts.map(a => 
+            a._id === alertId ? { ...a, status: newStatus } : a
+          );
+          setData({ ...data, alerts: newAlerts });
+          
+          if (selectedAlert && selectedAlert._id === alertId) {
+            setSelectedAlert({ ...selectedAlert, status: newStatus });
+          }
         }
-        if (comparison !== 0) return comparison;
+        // Fetch fresh data in background to update metrics
+        fetchData(page, sortConfigs);
+        setStatusMessage({ text: 'Status updated successfully', type: 'success' });
+      } else {
+        setStatusMessage({ text: json.error || 'Failed to update status', type: 'error' });
       }
-      return 0;
-    });
-  };
-
-  const sortedAlerts = getSortedAlerts();
-
-  const getSortIcon = (key: string) => {
-    const config = sortConfigs.find(s => s.key === key);
-    if (!config) return <ArrowUpDown className="w-3 h-3 ml-1 text-neutral-600 inline opacity-40 group-hover:opacity-100 transition-opacity" />;
-    return config.direction === 'asc' ?
-      <ArrowUp className="w-3 h-3 ml-1 text-indigo-400 inline" /> :
-      <ArrowDown className="w-3 h-3 ml-1 text-indigo-400 inline" />;
+    } catch {
+      setStatusMessage({ text: 'Network error updating status', type: 'error' });
+    }
   };
 
   // ─── Loading State ────────────────────────────────────────────────────
@@ -244,53 +223,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
-  const { metrics, pagination } = data;
-
-  // Format data for Recharts
-  const severityColors: Record<string, string> = {
-    CRITICAL: '#ef4444',
-    HIGH: '#f97316',
-    MEDIUM: '#eab308',
-    LOW: '#3b82f6',
-    UNKNOWN: '#6b7280'
-  };
-
-  const severityData = metrics?.alert_counts_by_severity
-    ? Object.entries(metrics.alert_counts_by_severity).map(([key, value]) => ({
-        name: String(key),
-        value: Number(value),
-        fill: severityColors[key] || severityColors.UNKNOWN
-      }))
-    : [];
-
-  const mitreData = metrics?.top_mitre_techniques
-    ? Object.entries(metrics.top_mitre_techniques).map(([key, value]) => ({
-        technique: String(key),
-        count: Number(value)
-      }))
-    : [];
-
-  // Generate page numbers for pagination
-  const getPageNumbers = () => {
-    if (!pagination) return [];
-    const pages: (number | '...')[] = [];
-    const total = pagination.totalPages;
-    const current = pagination.currentPage;
-
-    if (total <= 7) {
-      for (let i = 1; i <= total; i++) pages.push(i);
-    } else {
-      pages.push(1);
-      if (current > 3) pages.push('...');
-      for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) {
-        pages.push(i);
-      }
-      if (current < total - 2) pages.push('...');
-      pages.push(total);
-    }
-    return pages;
-  };
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 p-6 md:p-12 font-sans selection:bg-indigo-500/30">
@@ -392,267 +324,46 @@ export default function Dashboard() {
           )}
         </header>
 
-        {/* Top Level Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl shadow-black/50 hover:border-indigo-500/50 transition-colors">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400">
-                <Activity className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-neutral-400">Total Alerts</p>
-                <p className="text-3xl font-bold text-white">{metrics?.total_alerts || 0}</p>
-              </div>
-            </div>
-          </div>
+        <MetricCards metrics={data.metrics} />
 
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl shadow-black/50 hover:border-red-500/50 transition-colors">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-red-500/10 rounded-xl text-red-400">
-                <ShieldAlert className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-neutral-400">High/Critical Alerts</p>
-                <p className="text-3xl font-bold text-white">
-                  {(metrics?.alert_counts_by_severity?.HIGH || 0) + (metrics?.alert_counts_by_severity?.CRITICAL || 0)}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl shadow-black/50">
-            <div className="flex flex-col justify-center h-full">
-               <p className="text-sm font-medium text-neutral-400 mb-1">Last Run Timestamp</p>
-               <p className="text-lg font-mono text-indigo-300">
-                 {metrics?.timestamp ? new Date(metrics.timestamp).toLocaleString() : 'N/A'}
-               </p>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          <SeverityChart metrics={data.metrics} />
+          <RiskScoreboard />
         </div>
 
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Severity Chart */}
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl shadow-black/50">
-            <h3 className="text-lg font-semibold mb-6 text-neutral-200">Alerts by Severity</h3>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={severityData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {severityData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '0.5rem', color: '#f5f5f5' }}
-                    itemStyle={{ color: '#f5f5f5' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex justify-center gap-4 mt-4 text-xs font-medium text-neutral-400">
-              {severityData.map(s => (
-                <div key={s.name} className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: s.fill }} />
-                  {s.name} ({s.value})
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* MITRE Top Techniques */}
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl shadow-black/50">
-            <h3 className="text-lg font-semibold mb-6 text-neutral-200">Top MITRE ATT&CK Techniques</h3>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={mitreData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#262626" horizontal={false} />
-                  <XAxis type="number" stroke="#737373" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis dataKey="technique" type="category" stroke="#a3a3a3" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip
-                    cursor={{ fill: '#262626' }}
-                    contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '0.5rem' }}
-                  />
-                  <Bar dataKey="count" fill="#6366f1" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+        <div className="mt-6">
+          <MitreHeatmap 
+            alerts={data.alerts}
+            onFilterChange={(techId) => {
+              // Set search term to the technique ID if selected, or clear it if unselected
+              setSearchTerm(techId || '');
+            }}
+          />
         </div>
 
-        {/* Alerts Table */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl shadow-black/50 overflow-hidden">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-3">
-              <h3 className="text-lg font-semibold text-neutral-200">Alerts</h3>
-              {pagination && (
-                <span className="text-xs text-neutral-500 bg-neutral-800 px-2.5 py-1 rounded-full">
-                  {pagination.totalAlerts} total
-                </span>
-              )}
-            </div>
-            <div className="relative group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500 group-focus-within:text-indigo-400 transition-colors" />
-              <input
-                id="search-alerts"
-                type="text"
-                placeholder="Search User, IP, or Rule..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-neutral-950 border border-neutral-800 rounded-lg pl-10 pr-4 py-2 text-sm text-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all w-full md:w-64"
-              />
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="text-xs uppercase bg-neutral-950/50 text-neutral-400">
-                <tr>
-                  <th 
-                    className={`px-6 py-4 font-medium rounded-tl-lg cursor-pointer hover:text-white transition-colors select-none group ${loading ? 'opacity-50 cursor-wait' : ''}`} 
-                    onClick={(e) => handleSort('timestamp', e.shiftKey)}
-                  >
-                    Timestamp {getSortIcon('timestamp')}
-                  </th>
-                  <th className="px-6 py-4 font-medium">Rule Title</th>
-                  <th 
-                    className={`px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors select-none group ${loading ? 'opacity-50 cursor-wait' : ''}`} 
-                    onClick={(e) => handleSort('severity', e.shiftKey)}
-                  >
-                    Severity {getSortIcon('severity')}
-                  </th>
-                  <th 
-                    className={`px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors select-none group ${loading ? 'opacity-50 cursor-wait' : ''}`} 
-                    onClick={(e) => handleSort('confidence_score', e.shiftKey)}
-                  >
-                    Confidence {getSortIcon('confidence_score')}
-                  </th>
-                  <th className="px-6 py-4 font-medium">User/IP</th>
-                  <th className="px-6 py-4 font-medium rounded-tr-lg">MITRE</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-800/50">
-                {sortedAlerts && sortedAlerts.map((alert: any, idx: number) => (
-                  <tr key={idx} className="hover:bg-neutral-800/20 transition-colors">
-                    <td className="px-6 py-4 text-neutral-400 font-mono text-xs">
-                      {new Date(alert.timestamp).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 font-medium text-neutral-200">
-                      {alert.rule_title}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold tracking-wider
-                        ${alert.severity?.toLowerCase() === 'critical' ? 'bg-red-600/20 text-red-300 border border-red-400/30 animate-pulse' : ''}
-                        ${alert.severity?.toLowerCase() === 'high' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : ''}
-                        ${alert.severity?.toLowerCase() === 'medium' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' : ''}
-                        ${alert.severity?.toLowerCase() === 'low' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : ''}
-                      `}>
-                        {alert.severity?.toUpperCase() || 'UNKNOWN'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${alert.confidence_score > 80 ? 'bg-emerald-500' : 'bg-indigo-500'}`}
-                            style={{ width: `${alert.confidence_score}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-neutral-400">{alert.confidence_score}%</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-neutral-400">
-                      {alert.hit_log?.user || '-'} / {alert.hit_log?.ip_address || '-'}
-                    </td>
-                    <td className="px-6 py-4">
-                      {alert.mitre_enrichment?.technique_id ? (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-neutral-800 text-neutral-300 rounded text-xs border border-neutral-700">
-                          {alert.mitre_enrichment.technique_id}
-                        </span>
-                      ) : (
-                        <span className="text-neutral-600">-</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {(!sortedAlerts || sortedAlerts.length === 0) && (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-neutral-500">
-                      <div className="flex flex-col items-center gap-3">
-                        <ShieldAlert className="w-8 h-8 text-neutral-700" />
-                        <p>No alerts found</p>
-                        <button
-                          onClick={handleGenerate}
-                          disabled={generating}
-                          className="text-indigo-400 hover:text-indigo-300 text-sm font-medium transition-colors"
-                        >
-                          Generate sample data →
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination Controls */}
-          {pagination && pagination.totalPages > 1 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t border-neutral-800">
-              <p className="text-xs text-neutral-500">
-                Showing {((pagination.currentPage - 1) * pagination.limit) + 1}–{Math.min(pagination.currentPage * pagination.limit, pagination.totalAlerts)} of {pagination.totalAlerts} alerts
-              </p>
-
-              <div className="flex items-center gap-1">
-                <button
-                  id="pagination-prev"
-                  onClick={() => goToPage(page - 1)}
-                  disabled={!pagination.hasPrev || loading}
-                  className="p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-
-                {getPageNumbers().map((pageNum, idx) => (
-                  pageNum === '...' ? (
-                    <span key={`dots-${idx}`} className="px-2 text-neutral-600 text-sm">...</span>
-                  ) : (
-                    <button
-                      key={pageNum}
-                      onClick={() => goToPage(pageNum as number)}
-                      disabled={loading}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                        pageNum === pagination.currentPage
-                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
-                          : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  )
-                ))}
-
-                <button
-                  id="pagination-next"
-                  onClick={() => goToPage(page + 1)}
-                  disabled={!pagination.hasNext || loading}
-                  className="p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
+        <div className="mt-6">
+          <AlertsTable 
+            alerts={data.alerts}
+            pagination={data.pagination}
+            loading={loading}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            sortConfigs={sortConfigs}
+            handleSort={handleSort}
+            goToPage={goToPage}
+            handleGenerate={handleGenerate}
+            generating={generating}
+            onRowClick={(alert) => setSelectedAlert(alert)}
+          />
         </div>
 
       </div>
+
+      <AlertDetailDrawer
+        alert={selectedAlert}
+        onClose={() => setSelectedAlert(null)}
+        onStatusChange={handleStatusChange}
+      />
     </div>
   );
 }

@@ -5,8 +5,13 @@ import { Db } from 'mongodb';
 export interface SigmaRule {
   title: string;
   level: 'low' | 'medium' | 'high' | 'critical';
-  detection: { action: string };
+  detection: { action: string; timeRange?: { startHourUTC: number, endHourUTC: number } };
   tags: string[];
+  threshold?: {
+    field: keyof RawLog; // e.g. 'ip_address', 'user'
+    count: number;
+    timeWindowMs: number;
+  };
 }
 
 export const SIGMA_RULES: SigmaRule[] = [
@@ -15,12 +20,14 @@ export const SIGMA_RULES: SigmaRule[] = [
     level: 'high',
     detection: { action: 'login_failed' },
     tags: ['attack.t1110.004'],
+    threshold: { field: 'ip_address', count: 5, timeWindowMs: 300000 }, // 5 fails from 1 IP in 5 min
   },
   {
     title: 'Brute Force - Multiple Failed Logins from Single IP',
     level: 'high',
     detection: { action: 'login_failed' },
     tags: ['attack.t1110'],
+    threshold: { field: 'ip_address', count: 10, timeWindowMs: 600000 }, // 10 fails from 1 IP in 10 min
   },
   {
     title: 'Successful Login Monitoring',
@@ -40,16 +47,59 @@ export const SIGMA_RULES: SigmaRule[] = [
     detection: { action: 'role_change' },
     tags: ['attack.t1078.004'],
   },
+  {
+    title: 'Off-Hours Access',
+    level: 'medium',
+    detection: { action: 'login_success', timeRange: { startHourUTC: 0, endHourUTC: 5 } },
+    tags: ['attack.t1078'],
+  },
+  {
+    title: 'Impossible Travel',
+    level: 'high',
+    detection: { action: 'login_success' },
+    tags: ['attack.t1078'],
+    threshold: { field: 'user', count: 2, timeWindowMs: 3600000 }, // 2 successes for same user within 1 hr (simplified placeholder logic)
+  }
 ];
 
 // ─── Static MITRE ATT&CK Lookup ────────────────────────────────────────────
 // Avoids downloading the 47MB STIX dataset on serverless
-const MITRE_LOOKUP: Record<string, { technique_id: string; name: string }> = {
-  'attack.t1110.004': { technique_id: 'T1110', name: 'Brute Force: Credential Stuffing' },
-  'attack.t1110':     { technique_id: 'T1110', name: 'Brute Force' },
-  'attack.t1078':     { technique_id: 'T1078', name: 'Valid Accounts' },
-  'attack.t1657':     { technique_id: 'T1657', name: 'Financial Theft' },
-  'attack.t1078.004': { technique_id: 'T1078', name: 'Valid Accounts: Cloud Accounts' },
+const MITRE_LOOKUP: Record<string, { technique_id: string; name: string; tactic: string; description: string; remediation: string }> = {
+  'attack.t1110.004': { 
+    technique_id: 'T1110.004', 
+    name: 'Brute Force: Credential Stuffing',
+    tactic: 'Credential Access',
+    description: 'Adversaries may use credentials obtained from breach dumps to systematically try and log into accounts.',
+    remediation: 'Implement multi-factor authentication (MFA) and rate limiting on login endpoints.'
+  },
+  'attack.t1110': { 
+    technique_id: 'T1110', 
+    name: 'Brute Force',
+    tactic: 'Credential Access',
+    description: 'Adversaries may use brute force techniques to guess passwords and gain access to accounts.',
+    remediation: 'Implement account lockout policies after a certain number of failed login attempts.'
+  },
+  'attack.t1078': { 
+    technique_id: 'T1078', 
+    name: 'Valid Accounts',
+    tactic: 'Initial Access',
+    description: 'Adversaries may obtain and abuse credentials of existing accounts as a means of gaining Initial Access.',
+    remediation: 'Regularly audit active accounts and remove unused or stale accounts.'
+  },
+  'attack.t1657': { 
+    technique_id: 'T1657', 
+    name: 'Financial Theft',
+    tactic: 'Impact',
+    description: 'Adversaries may steal financial assets or conduct fraudulent transactions.',
+    remediation: 'Require secondary approval for high-value transfers and implement anomaly detection for financial transactions.'
+  },
+  'attack.t1078.004': { 
+    technique_id: 'T1078.004', 
+    name: 'Valid Accounts: Cloud Accounts',
+    tactic: 'Initial Access',
+    description: 'Adversaries may compromise cloud accounts to gain access to cloud environments.',
+    remediation: 'Enforce strong password policies and MFA for all cloud accounts.'
+  },
 };
 
 // ─── Log Generation ─────────────────────────────────────────────────────────
@@ -156,41 +206,103 @@ export interface Alert {
   rule_title: string;
   hit_log: RawLog;
   confidence_score: number;
-  mitre_enrichment: { technique_id?: string; name?: string };
+  mitre_enrichment: { technique_id?: string; name?: string; tactic?: string; description?: string; remediation?: string };
   severity: string;
+  status: 'open' | 'investigating' | 'resolved' | 'false_positive';
 }
 
 export function evaluateRules(logs: RawLog[], rules: SigmaRule[]): Alert[] {
   const alerts: Alert[] = [];
   const now = new Date().toISOString();
 
+  // Sort logs chronologically for accurate threshold evaluation
+  const sortedLogs = [...logs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
   for (const rule of rules) {
-    const matchingLogs = logs.filter(log => log.action === rule.detection.action);
+    let matchingLogs = sortedLogs.filter(log => log.action === rule.detection.action);
 
-    for (const log of matchingLogs) {
-      const mitre_enrichment: { technique_id?: string; name?: string } = {};
+    // Apply time range filter if specified
+    if (rule.detection.timeRange) {
+      matchingLogs = matchingLogs.filter(log => {
+        const hour = new Date(log.timestamp).getUTCHours();
+        return hour >= rule.detection.timeRange!.startHourUTC && hour <= rule.detection.timeRange!.endHourUTC;
+      });
+    }
 
-      for (const tag of rule.tags) {
-        const lookup = MITRE_LOOKUP[tag];
-        if (lookup) {
-          mitre_enrichment.technique_id = lookup.technique_id;
-          mitre_enrichment.name = lookup.name;
-          break;
+    if (rule.threshold) {
+      // Threshold grouping logic
+      const groupedLogs: Record<string, RawLog[]> = {};
+      
+      for (const log of matchingLogs) {
+        const key = String(log[rule.threshold.field]);
+        if (!groupedLogs[key]) groupedLogs[key] = [];
+        groupedLogs[key].push(log);
+      }
+
+      for (const [key, group] of Object.entries(groupedLogs)) {
+        let windowStartIdx = 0;
+        let windowEndIdx = 0;
+
+        while (windowEndIdx < group.length) {
+          const startTime = new Date(group[windowStartIdx].timestamp).getTime();
+          const endTime = new Date(group[windowEndIdx].timestamp).getTime();
+
+          if (endTime - startTime <= rule.threshold.timeWindowMs) {
+            // Wait, for Impossible Travel, we need location diversity
+            if (rule.title === 'Impossible Travel') {
+               const locations = new Set(group.slice(windowStartIdx, windowEndIdx + 1).map(l => l.location));
+               if (locations.size >= 2) {
+                 createAlert(rule, group[windowEndIdx], alerts, now);
+                 windowStartIdx = windowEndIdx + 1; // reset window to avoid duplicate alerts
+               }
+            } else {
+               if (windowEndIdx - windowStartIdx + 1 >= rule.threshold.count) {
+                 createAlert(rule, group[windowEndIdx], alerts, now);
+                 windowStartIdx = windowEndIdx + 1; // reset window
+               }
+            }
+            windowEndIdx++;
+          } else {
+            windowStartIdx++;
+          }
         }
       }
 
-      alerts.push({
-        timestamp: now,
-        rule_title: rule.title,
-        hit_log: log,
-        confidence_score: Math.floor(Math.random() * 41) + 60, // 60-100
-        mitre_enrichment,
-        severity: rule.level,
-      });
+    } else {
+      // Single log evaluation
+      for (const log of matchingLogs) {
+        createAlert(rule, log, alerts, now);
+      }
     }
   }
 
   return alerts;
+}
+
+function createAlert(rule: SigmaRule, log: RawLog, alerts: Alert[], now: string) {
+  const mitre_enrichment: { technique_id?: string; name?: string; tactic?: string; description?: string; remediation?: string } = {};
+
+  for (const tag of rule.tags) {
+    const lookup = MITRE_LOOKUP[tag];
+    if (lookup) {
+      mitre_enrichment.technique_id = lookup.technique_id;
+      mitre_enrichment.name = lookup.name;
+      mitre_enrichment.tactic = lookup.tactic;
+      mitre_enrichment.description = lookup.description;
+      mitre_enrichment.remediation = lookup.remediation;
+      break;
+    }
+  }
+
+  alerts.push({
+    timestamp: now,
+    rule_title: rule.title,
+    hit_log: log,
+    confidence_score: Math.floor(Math.random() * 41) + 60, // 60-100
+    mitre_enrichment,
+    severity: rule.level,
+    status: 'open',
+  });
 }
 
 // ─── Metrics Computation ────────────────────────────────────────────────────
@@ -199,15 +311,20 @@ export interface DashboardMetrics {
   total_alerts: number;
   alert_counts_by_severity: Record<string, number>;
   top_mitre_techniques: Record<string, number>;
+  alert_counts_by_status: Record<string, number>;
 }
 
 export function computeMetrics(alerts: Alert[]): DashboardMetrics {
   const severityCounts: Record<string, number> = {};
   const techniqueCounts: Record<string, number> = {};
+  const statusCounts: Record<string, number> = {};
 
   for (const alert of alerts) {
     const sev = (alert.severity || 'unknown').toUpperCase();
     severityCounts[sev] = (severityCounts[sev] || 0) + 1;
+
+    const status = alert.status || 'open';
+    statusCounts[status] = (statusCounts[status] || 0) + 1;
 
     const techId = alert.mitre_enrichment?.technique_id;
     if (techId) {
@@ -225,6 +342,7 @@ export function computeMetrics(alerts: Alert[]): DashboardMetrics {
     total_alerts: alerts.length,
     alert_counts_by_severity: severityCounts,
     top_mitre_techniques: Object.fromEntries(sortedTechniques),
+    alert_counts_by_status: statusCounts,
   };
 }
 

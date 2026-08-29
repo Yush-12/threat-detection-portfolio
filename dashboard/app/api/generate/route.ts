@@ -1,23 +1,10 @@
 import { NextResponse } from 'next/server';
-import { MongoClient } from 'mongodb';
 import { generateSyntheticLogs, runPipeline } from '../../lib/siem-engine';
+import { getDb } from '../../lib/mongodb';
 
 export async function POST() {
-  const uri = process.env.MONGO_URI;
-
-  if (!uri) {
-    return NextResponse.json(
-      { error: 'MONGO_URI environment variable is not defined' },
-      { status: 500 }
-    );
-  }
-
-  let client;
-
   try {
-    client = new MongoClient(uri);
-    await client.connect();
-    const db = client.db('siem_db');
+    const db = await getDb();
 
     // Generate synthetic logs
     const logs = generateSyntheticLogs();
@@ -36,9 +23,5 @@ export async function POST() {
       { error: 'Failed to generate logs. Please try again.' },
       { status: 500 }
     );
-  } finally {
-    if (client) {
-      await client.close();
-    }
   }
 }

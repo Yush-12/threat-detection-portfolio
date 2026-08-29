@@ -1,0 +1,21 @@
+title: Impossible Travel
+id: e4b2f1d5-8a9c-0b1e-2f3a-4c5d6e7f8a9b
+status: experimental
+description: Detects successful logins for the same user from two distinct locations within a short time window (1 hour).
+author: Antigravity SIEM
+date: 2026-08-29
+tags:
+    - attack.initial_access
+    - attack.t1078
+logsource:
+    category: authentication
+    product: web
+detection:
+    selection:
+        action: 'login_success'
+    threshold:
+        field: 'user'
+        count: 2
+        timeWindowMs: 3600000
+    condition: selection and threshold
+level: high

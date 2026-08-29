@@ -1,19 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { MongoClient } from 'mongodb';
 import { runPipeline, RawLog } from '../../lib/siem-engine';
+import { getDb } from '../../lib/mongodb';
 
 export async function POST(request: NextRequest) {
-  const uri = process.env.MONGO_URI;
-
-  if (!uri) {
-    return NextResponse.json(
-      { error: 'MONGO_URI environment variable is not defined' },
-      { status: 500 }
-    );
-  }
-
-  let client;
-
   try {
     // Parse the uploaded file from FormData
     const formData = await request.formData();
@@ -75,9 +64,7 @@ export async function POST(request: NextRequest) {
       ...(log.new_role && { new_role: log.new_role }),
     }));
 
-    client = new MongoClient(uri);
-    await client.connect();
-    const db = client.db('siem_db');
+    const db = await getDb();
 
     // Run pipeline — do NOT clear existing data, append uploaded logs
     const result = await runPipeline(db, normalizedLogs, false);
@@ -93,9 +80,5 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to process uploaded logs. Please try again.' },
       { status: 500 }
     );
-  } finally {
-    if (client) {
-      await client.close();
-    }
   }
 }

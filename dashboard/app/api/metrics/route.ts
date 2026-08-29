@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { MongoClient } from 'mongodb';
+import { getDb } from '../../lib/mongodb';
 
 export async function GET(request: NextRequest) {
-  const uri = process.env.MONGO_URI;
-
-  if (!uri) {
-    return NextResponse.json(
-      { error: 'MONGO_URI environment variable is not defined' },
-      { status: 500 }
-    );
-  }
-
   // Parse pagination & sorting params
   const searchParams = request.nextUrl.searchParams;
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
@@ -26,12 +17,8 @@ export async function GET(request: NextRequest) {
   
   const skip = (page - 1) * limit;
 
-  let client;
-
   try {
-    client = new MongoClient(uri);
-    await client.connect();
-    const db = client.db('siem_db');
+    const db = await getDb();
 
     // Fetch metrics
     const latestMetricsArray = await db
@@ -109,9 +96,5 @@ export async function GET(request: NextRequest) {
       { error: 'Failed to fetch data from database' },
       { status: 500 }
     );
-  } finally {
-    if (client) {
-      await client.close();
-    }
   }
 }
