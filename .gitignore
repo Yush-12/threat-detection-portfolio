@@ -1,9 +1,37 @@
-# Large Data Files (Automatically downloaded by script)
+# Large Datasets (Auto-downloaded or embedded)
 enterprise-attack.json
+*.stix
+*.jsonl
 
-# Environment Secrets (CRITICAL: Never commit these)
+# Environment & Secrets (CRITICAL)
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 dashboard/.env*
-.env*
+*.pem
+*.key
+*.cert
+
+# Node.js & Next.js
+node_modules/
+dashboard/node_modules/
+.next/
+dashboard/.next/
+out/
+dashboard/out/
+build/
+dist/
+.pnp
+.pnp.*
+*.tsbuildinfo
+next-env.d.ts
+
+# Vercel
+.vercel/
+dashboard/.vercel/
 
 # Python
 __pycache__/
@@ -13,20 +41,12 @@ __pycache__/
 env/
 venv/
 ENV/
+*.egg-info/
 
-# OS Files
+# Operating System & IDEs
 .DS_Store
 Thumbs.db
-
-# IDEs
 .vscode/
 .idea/
-
-# Node
-node_modules/
-.next/
-dist/
-build/
-
-# Vercel
-.vercel/
+*.swp
+*.swo
