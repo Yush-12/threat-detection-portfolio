@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getDb } from '../../lib/mongodb';
 import { computeEntityRiskScores } from '../../lib/risk-engine';
 import { Alert } from '../../lib/siem-engine';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const db = await getDb();
     const alerts = await db.collection('alerts').find({}).toArray() as unknown as Alert[];

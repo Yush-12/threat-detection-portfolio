@@ -1,4 +1,4 @@
-import { X, ShieldAlert, CheckCircle, Clock, CheckCircle2, AlertTriangle, FileJson, ExternalLink } from 'lucide-react';
+import { X, ShieldAlert, Clock, CheckCircle2, AlertTriangle, FileJson, ExternalLink } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 const getMitreUrl = (techId: string) => {

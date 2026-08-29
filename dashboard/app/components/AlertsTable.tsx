@@ -1,13 +1,5 @@
 import { Search, ArrowUp, ArrowDown, ArrowUpDown, ShieldAlert, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
-
-interface Pagination {
-  currentPage: number;
-  totalPages: number;
-  totalAlerts: number;
-  limit: number;
-  hasNext: boolean;
-  hasPrev: boolean;
-}
+import type { Pagination } from '../page';
 
 interface AlertsTableProps {
   alerts: any[];

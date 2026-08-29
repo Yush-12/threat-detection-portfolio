@@ -315,13 +315,15 @@ export interface DashboardMetrics {
   mitre_techniques?: Record<string, { name: string; tactic: string; count: number; max_severity?: string }>;
 }
 
+export const SEVERITY_RANK: Record<string, number> = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
+
 export function computeMetrics(alerts: Alert[]): DashboardMetrics {
   const severityCounts: Record<string, number> = {};
   const techniqueCounts: Record<string, number> = {};
   const statusCounts: Record<string, number> = {};
   const mitreTechniques: Record<string, { name: string; tactic: string; count: number; max_severity: string }> = {};
 
-  const severityRank: Record<string, number> = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
+  const severityRank = SEVERITY_RANK;
 
   for (const alert of alerts) {
     const sev = (alert.severity || 'unknown').toUpperCase();

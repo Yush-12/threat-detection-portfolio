@@ -9,7 +9,7 @@ import { RiskScoreboard } from './components/RiskScoreboard';
 import { AlertsTable } from './components/AlertsTable';
 import { AlertDetailDrawer } from './components/AlertDetailDrawer';
 
-interface Pagination {
+export interface Pagination {
   currentPage: number;
   totalPages: number;
   totalAlerts: number;

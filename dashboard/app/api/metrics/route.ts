@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '../../lib/mongodb';
+import { SEVERITY_RANK } from '../../lib/siem-engine';
 
 export async function GET(request: NextRequest) {
   // Parse pagination, sorting, search, and MITRE filter params
@@ -46,16 +47,14 @@ export async function GET(request: NextRequest) {
         }
       ]).toArray();
 
-      const severityRank: Record<string, number> = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
-
       const mitreTechniques: Record<string, any> = {};
       mitreAgg.forEach(item => {
         let maxSev = 'LOW';
         let maxRank = 0;
         (item.severities || []).forEach((s: string) => {
           const up = (s || '').toUpperCase();
-          if ((severityRank[up] || 0) > maxRank) {
-            maxRank = severityRank[up];
+          if ((SEVERITY_RANK[up] || 0) > maxRank) {
+            maxRank = SEVERITY_RANK[up];
             maxSev = up;
           }
         });
