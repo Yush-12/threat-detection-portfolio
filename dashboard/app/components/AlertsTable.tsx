@@ -1,4 +1,4 @@
-import { Search, ArrowUp, ArrowDown, ArrowUpDown, ShieldAlert, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, ArrowUp, ArrowDown, ArrowUpDown, ShieldAlert, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 
 interface Pagination {
   currentPage: number;
@@ -15,6 +15,8 @@ interface AlertsTableProps {
   loading: boolean;
   searchTerm: string;
   setSearchTerm: (term: string) => void;
+  selectedTechnique?: string | null;
+  onClearTechnique?: () => void;
   sortConfigs: { key: string; direction: 'asc' | 'desc' }[];
   handleSort: (key: string, isMulti: boolean) => void;
   goToPage: (page: number) => void;
@@ -29,6 +31,8 @@ export function AlertsTable({
   loading,
   searchTerm,
   setSearchTerm,
+  selectedTechnique,
+  onClearTechnique,
   sortConfigs,
   handleSort,
   goToPage,
@@ -36,56 +40,24 @@ export function AlertsTable({
   generating,
   onRowClick
 }: AlertsTableProps) {
-  const getSortedAlerts = () => {
-    if (!alerts) return [];
-
-    let filtered = [...alerts];
-    if (searchTerm) {
-      const lowSearch = searchTerm.toLowerCase();
-      filtered = filtered.filter((alert: any) =>
-        alert.rule_title?.toLowerCase().includes(lowSearch) ||
-        alert.hit_log?.user?.toLowerCase().includes(lowSearch) ||
-        alert.hit_log?.ip_address?.toLowerCase().includes(lowSearch) ||
-        alert.mitre_enrichment?.technique_id?.toLowerCase().includes(lowSearch)
-      );
-    }
-
-    if (sortConfigs.length === 0) return filtered;
-
-    return filtered.sort((a: any, b: any) => {
-      for (const config of sortConfigs) {
-        let comparison = 0;
-        if (config.key === 'timestamp') {
-          const aTime = new Date(a.timestamp).getTime();
-          const bTime = new Date(b.timestamp).getTime();
-          comparison = config.direction === 'asc' ? aTime - bTime : bTime - aTime;
-        } else if (config.key === 'severity') {
-          const severityScores: Record<string, number> = { 'critical': 4, 'high': 3, 'medium': 2, 'low': 1 };
-          const aScore = severityScores[a.severity?.toLowerCase()] || 0;
-          const bScore = severityScores[b.severity?.toLowerCase()] || 0;
-          comparison = config.direction === 'asc' ? aScore - bScore : bScore - aScore;
-        } else if (config.key === 'status') {
-          const statusScores: Record<string, number> = { 'open': 4, 'investigating': 3, 'resolved': 2, 'false_positive': 1 };
-          const aScore = statusScores[a.status?.toLowerCase()] || 0;
-          const bScore = statusScores[b.status?.toLowerCase()] || 0;
-          comparison = config.direction === 'asc' ? aScore - bScore : bScore - aScore;
-        } else if (config.key === 'confidence_score') {
-          comparison = config.direction === 'asc' ? a.confidence_score - b.confidence_score : b.confidence_score - a.confidence_score;
-        }
-        if (comparison !== 0) return comparison;
-      }
-      return 0;
-    });
-  };
-
-  const sortedAlerts = getSortedAlerts();
+  const sortedAlerts = alerts || [];
 
   const getSortIcon = (key: string) => {
-    const config = sortConfigs.find(s => s.key === key);
-    if (!config) return <ArrowUpDown className="w-3 h-3 ml-1 text-neutral-600 inline opacity-40 group-hover:opacity-100 transition-opacity" />;
-    return config.direction === 'asc' ?
-      <ArrowUp className="w-3 h-3 ml-1 text-indigo-400 inline" /> :
-      <ArrowDown className="w-3 h-3 ml-1 text-indigo-400 inline" />;
+    const configIndex = sortConfigs.findIndex(c => c.key === key);
+    if (configIndex === -1) {
+      return <ArrowUpDown className="w-3.5 h-3.5 inline ml-1 opacity-0 group-hover:opacity-40 transition-opacity" />;
+    }
+    const config = sortConfigs[configIndex];
+    return (
+      <span className="inline-flex items-center ml-1 text-indigo-400">
+        {config.direction === 'asc' ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
+        {sortConfigs.length > 1 && (
+          <span className="text-[10px] bg-indigo-500/20 text-indigo-300 rounded px-1 ml-0.5 font-mono">
+            {configIndex + 1}
+          </span>
+        )}
+      </span>
+    );
   };
 
   const getPageNumbers = () => {
@@ -117,6 +89,18 @@ export function AlertsTable({
             <span className="text-xs text-neutral-500 bg-neutral-800 px-2.5 py-1 rounded-full">
               {pagination.totalAlerts} total
             </span>
+          )}
+          {selectedTechnique && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs">
+              <span>MITRE: <strong>{selectedTechnique}</strong></span>
+              <button 
+                onClick={onClearTechnique}
+                className="ml-1 hover:text-white transition-colors"
+                title="Clear MITRE filter"
+              >
+                ✕
+              </button>
+            </div>
           )}
         </div>
         <div className="relative group">
@@ -213,9 +197,17 @@ export function AlertsTable({
                 </td>
                 <td className="px-6 py-4">
                   {alert.mitre_enrichment?.technique_id ? (
-                    <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-neutral-800 text-neutral-300 rounded text-xs border border-neutral-700">
-                      {alert.mitre_enrichment.technique_id}
-                    </span>
+                    <a
+                      href={`https://attack.mitre.org/techniques/${alert.mitre_enrichment.technique_id.replace('.', '/')}/`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-neutral-800/80 hover:bg-indigo-950/60 text-neutral-300 hover:text-indigo-300 rounded-lg text-xs font-mono border border-neutral-700 hover:border-indigo-500/40 transition-all group"
+                      title={`Open ${alert.mitre_enrichment.technique_id} on official MITRE ATT&CK website`}
+                    >
+                      <span>{alert.mitre_enrichment.technique_id}</span>
+                      <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-indigo-400" />
+                    </a>
                   ) : (
                     <span className="text-neutral-600">-</span>
                   )}

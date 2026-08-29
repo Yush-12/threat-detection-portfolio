@@ -41,11 +41,11 @@ export function RiskScoreboard() {
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3 max-h-[380px] overflow-y-auto custom-scrollbar pr-1">
         {data.map((entity, idx) => (
-          <div key={entity.entity_id} className="group flex items-center justify-between p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-red-500/30 hover:bg-neutral-900 transition-all">
-            <div className="flex items-center gap-4">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold
+          <div key={entity.entity_id} className="group flex items-center justify-between p-2.5 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-red-500/30 hover:bg-neutral-900 transition-all">
+            <div className="flex items-center gap-3">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
                 ${idx === 0 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 
                   idx < 3 ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-neutral-800 text-neutral-400'}
               `}>
@@ -54,10 +54,10 @@ export function RiskScoreboard() {
               <div>
                 <div className="flex items-center gap-2">
                   {entity.type === 'user' ? <User className="w-3.5 h-3.5 text-indigo-400" /> : <Globe className="w-3.5 h-3.5 text-blue-400" />}
-                  <span className="font-mono text-sm font-bold text-neutral-200">{entity.entity_id}</span>
+                  <span className="font-mono text-xs font-bold text-neutral-200">{entity.entity_id}</span>
                 </div>
-                <div className="text-xs text-neutral-500 mt-1 flex gap-3">
-                  <span>{entity.alert_count} total</span>
+                <div className="text-[11px] text-neutral-500 mt-0.5 flex gap-2">
+                  <span>{entity.alert_count} alerts</span>
                   {(entity.critical_count > 0 || entity.high_count > 0) && (
                     <span className="text-red-400/80">({entity.critical_count}C / {entity.high_count}H)</span>
                   )}
@@ -65,11 +65,11 @@ export function RiskScoreboard() {
               </div>
             </div>
             
-            <div className="text-right flex flex-col items-end gap-1">
-              <span className="text-xl font-black tracking-tighter text-white">
+            <div className="text-right flex flex-col items-end gap-0.5">
+              <span className="text-lg font-black tracking-tighter text-white">
                 {entity.score}
               </span>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700">
+              <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-neutral-800 text-neutral-400 border border-neutral-700">
                 {entity.top_technique}
               </span>
             </div>

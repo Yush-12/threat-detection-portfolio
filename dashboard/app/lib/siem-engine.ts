@@ -312,12 +312,16 @@ export interface DashboardMetrics {
   alert_counts_by_severity: Record<string, number>;
   top_mitre_techniques: Record<string, number>;
   alert_counts_by_status: Record<string, number>;
+  mitre_techniques?: Record<string, { name: string; tactic: string; count: number; max_severity?: string }>;
 }
 
 export function computeMetrics(alerts: Alert[]): DashboardMetrics {
   const severityCounts: Record<string, number> = {};
   const techniqueCounts: Record<string, number> = {};
   const statusCounts: Record<string, number> = {};
+  const mitreTechniques: Record<string, { name: string; tactic: string; count: number; max_severity: string }> = {};
+
+  const severityRank: Record<string, number> = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
 
   for (const alert of alerts) {
     const sev = (alert.severity || 'unknown').toUpperCase();
@@ -329,6 +333,19 @@ export function computeMetrics(alerts: Alert[]): DashboardMetrics {
     const techId = alert.mitre_enrichment?.technique_id;
     if (techId) {
       techniqueCounts[techId] = (techniqueCounts[techId] || 0) + 1;
+      if (!mitreTechniques[techId]) {
+        mitreTechniques[techId] = {
+          name: alert.mitre_enrichment?.name || techId,
+          tactic: alert.mitre_enrichment?.tactic || 'Unknown',
+          count: 0,
+          max_severity: sev
+        };
+      } else {
+        if ((severityRank[sev] || 0) > (severityRank[mitreTechniques[techId].max_severity] || 0)) {
+          mitreTechniques[techId].max_severity = sev;
+        }
+      }
+      mitreTechniques[techId].count += 1;
     }
   }
 
@@ -343,6 +360,7 @@ export function computeMetrics(alerts: Alert[]): DashboardMetrics {
     alert_counts_by_severity: severityCounts,
     top_mitre_techniques: Object.fromEntries(sortedTechniques),
     alert_counts_by_status: statusCounts,
+    mitre_techniques: mitreTechniques,
   };
 }
 

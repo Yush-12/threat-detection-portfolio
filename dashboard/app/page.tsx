@@ -31,6 +31,7 @@ export default function Dashboard() {
   const [page, setPage] = useState(1);
   const [sortConfigs, setSortConfigs] = useState<{ key: string; direction: 'asc' | 'desc' }[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedTechnique, setSelectedTechnique] = useState<string | null>(null);
 
   // Action states
   const [generating, setGenerating] = useState(false);
@@ -41,10 +42,19 @@ export default function Dashboard() {
 
   const ITEMS_PER_PAGE = 25;
 
-  const fetchData = useCallback(async (pageNum: number = 1, currentSorts: { key: string; direction: 'asc' | 'desc' }[] = [{ key: 'timestamp', direction: 'desc' }]) => {
+  const fetchData = useCallback(async (
+    pageNum: number = 1,
+    currentSorts: { key: string; direction: 'asc' | 'desc' }[] = sortConfigs,
+    query: string = searchTerm,
+    tech: string | null = selectedTechnique
+  ) => {
     try {
-      const sortStr = encodeURIComponent(JSON.stringify(currentSorts));
-      const res = await fetch(`/api/metrics?page=${pageNum}&limit=${ITEMS_PER_PAGE}&sort=${sortStr}`);
+      setLoading(true);
+      const sortStr = encodeURIComponent(JSON.stringify(currentSorts.length > 0 ? currentSorts : [{ key: 'timestamp', direction: 'desc' }]));
+      const searchStr = encodeURIComponent(query);
+      const techStr = encodeURIComponent(tech || '');
+      
+      const res = await fetch(`/api/metrics?page=${pageNum}&limit=${ITEMS_PER_PAGE}&sort=${sortStr}&search=${searchStr}&technique=${techStr}`);
       const json = await res.json();
       setData(json);
       setPage(pageNum);
@@ -53,11 +63,15 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [sortConfigs, searchTerm, selectedTechnique]);
 
+  // Initial load and filter change trigger
   useEffect(() => {
-    fetchData(1);
-  }, [fetchData]);
+    const timer = setTimeout(() => {
+      fetchData(1, sortConfigs, searchTerm, selectedTechnique);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchTerm, selectedTechnique]);
 
   // Auto-dismiss status messages
   useEffect(() => {
@@ -334,10 +348,9 @@ export default function Dashboard() {
         <div className="mt-6">
           <MitreHeatmap 
             alerts={data.alerts}
-            onFilterChange={(techId) => {
-              // Set search term to the technique ID if selected, or clear it if unselected
-              setSearchTerm(techId || '');
-            }}
+            metrics={data.metrics}
+            selectedTechnique={selectedTechnique}
+            onFilterChange={(techId) => setSelectedTechnique(techId)}
           />
         </div>
 
@@ -348,6 +361,8 @@ export default function Dashboard() {
             loading={loading}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
+            selectedTechnique={selectedTechnique}
+            onClearTechnique={() => setSelectedTechnique(null)}
             sortConfigs={sortConfigs}
             handleSort={handleSort}
             goToPage={goToPage}

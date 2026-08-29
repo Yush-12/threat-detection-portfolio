@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '../../lib/mongodb';
 
 export async function GET(request: NextRequest) {
-  // Parse pagination & sorting params
+  // Parse pagination, sorting, search, and MITRE filter params
   const searchParams = request.nextUrl.searchParams;
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '25', 10)));
   const sortParam = searchParams.get('sort');
+  const searchParam = searchParams.get('search')?.trim() || '';
+  const techniqueParam = searchParams.get('technique')?.trim() || '';
   let sortConfigs: { key: string; direction: 'asc' | 'desc' }[] = [];
   
   try {
@@ -27,26 +29,85 @@ export async function GET(request: NextRequest) {
       .sort({ timestamp: -1 })
       .limit(1)
       .toArray();
-    const latestMetrics = latestMetricsArray.length > 0 ? latestMetricsArray[0] : null;
+    let latestMetrics: any = latestMetricsArray.length > 0 ? latestMetricsArray[0] : null;
 
-    // Build the aggregation pipeline for severity weighting
-    const pipeline: any[] = [
-      {
-        $addFields: {
-          severity_weight: {
-            $switch: {
-              branches: [
-                { case: { $eq: [{ $toLower: "$severity" }, "critical"] }, then: 4 },
-                { case: { $eq: [{ $toLower: "$severity" }, "high"] }, then: 3 },
-                { case: { $eq: [{ $toLower: "$severity" }, "medium"] }, then: 2 },
-                { case: { $eq: [{ $toLower: "$severity" }, "low"] }, then: 1 }
-              ],
-              default: 0
-            }
+    const firstTech: any = latestMetrics?.mitre_techniques ? Object.values(latestMetrics.mitre_techniques)[0] : null;
+    if (latestMetrics && (!latestMetrics.mitre_techniques || !firstTech?.max_severity)) {
+      const mitreAgg = await db.collection('alerts').aggregate([
+        { $match: { "mitre_enrichment.technique_id": { $exists: true, $ne: null } } },
+        {
+          $group: {
+            _id: "$mitre_enrichment.technique_id",
+            count: { $sum: 1 },
+            name: { $first: "$mitre_enrichment.name" },
+            tactic: { $first: "$mitre_enrichment.tactic" },
+            severities: { $push: "$severity" }
+          }
+        }
+      ]).toArray();
+
+      const severityRank: Record<string, number> = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
+
+      const mitreTechniques: Record<string, any> = {};
+      mitreAgg.forEach(item => {
+        let maxSev = 'LOW';
+        let maxRank = 0;
+        (item.severities || []).forEach((s: string) => {
+          const up = (s || '').toUpperCase();
+          if ((severityRank[up] || 0) > maxRank) {
+            maxRank = severityRank[up];
+            maxSev = up;
+          }
+        });
+
+        mitreTechniques[item._id] = {
+          name: item.name || item._id,
+          tactic: item.tactic || 'Unknown',
+          count: item.count,
+          max_severity: maxSev
+        };
+      });
+      latestMetrics.mitre_techniques = mitreTechniques;
+    }
+
+    // Build filter query
+    const matchQuery: any = {};
+    if (techniqueParam) {
+      matchQuery["mitre_enrichment.technique_id"] = techniqueParam;
+    }
+    if (searchParam) {
+      const regex = { $regex: searchParam, $options: 'i' };
+      matchQuery.$or = [
+        { rule_title: regex },
+        { "hit_log.user": regex },
+        { "hit_log.ip_address": regex },
+        { "mitre_enrichment.technique_id": regex },
+        { "mitre_enrichment.name": regex }
+      ];
+    }
+
+    // Build the aggregation pipeline
+    const pipeline: any[] = [];
+
+    if (Object.keys(matchQuery).length > 0) {
+      pipeline.push({ $match: matchQuery });
+    }
+
+    pipeline.push({
+      $addFields: {
+        severity_weight: {
+          $switch: {
+            branches: [
+              { case: { $eq: [{ $toLower: "$severity" }, "critical"] }, then: 4 },
+              { case: { $eq: [{ $toLower: "$severity" }, "high"] }, then: 3 },
+              { case: { $eq: [{ $toLower: "$severity" }, "medium"] }, then: 2 },
+              { case: { $eq: [{ $toLower: "$severity" }, "low"] }, then: 1 }
+            ],
+            default: 0
           }
         }
       }
-    ];
+    });
 
     // Build the multi-key sort object
     let sortObj: any = {};
@@ -65,8 +126,8 @@ export async function GET(request: NextRequest) {
         sortObj = { timestamp: -1 };
     }
 
-    const totalAlerts = await db.collection('alerts').countDocuments();
-    const totalPages = Math.ceil(totalAlerts / limit);
+    const totalFilteredAlerts = await db.collection('alerts').countDocuments(matchQuery);
+    const totalPages = Math.max(1, Math.ceil(totalFilteredAlerts / limit));
 
     const alerts = await db
       .collection('alerts')
@@ -84,7 +145,7 @@ export async function GET(request: NextRequest) {
       pagination: {
         currentPage: page,
         totalPages,
-        totalAlerts,
+        totalAlerts: totalFilteredAlerts,
         limit,
         hasNext: page < totalPages,
         hasPrev: page > 1,

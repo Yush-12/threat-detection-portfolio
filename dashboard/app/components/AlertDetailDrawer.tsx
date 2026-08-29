@@ -1,5 +1,10 @@
-import { X, ShieldAlert, CheckCircle, Clock, CheckCircle2, AlertTriangle, FileJson } from 'lucide-react';
-import { useState } from 'react';
+import { X, ShieldAlert, CheckCircle, Clock, CheckCircle2, AlertTriangle, FileJson, ExternalLink } from 'lucide-react';
+import { useState, useEffect } from 'react';
+
+const getMitreUrl = (techId: string) => {
+  const formatted = techId.replace('.', '/');
+  return `https://attack.mitre.org/techniques/${formatted}/`;
+};
 
 interface AlertDetailDrawerProps {
   alert: any | null;
@@ -9,6 +14,17 @@ interface AlertDetailDrawerProps {
 
 export function AlertDetailDrawer({ alert, onClose, onStatusChange }: AlertDetailDrawerProps) {
   const [updating, setUpdating] = useState(false);
+
+  // Close on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   if (!alert) return null;
 
@@ -22,8 +38,14 @@ export function AlertDetailDrawer({ alert, onClose, onStatusChange }: AlertDetai
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm transition-opacity">
-      <div className="w-full max-w-2xl bg-neutral-950 h-full border-l border-neutral-800 shadow-2xl flex flex-col animate-slide-in-right">
+    <div 
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm transition-opacity cursor-pointer"
+    >
+      <div 
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-2xl bg-neutral-950 h-full border-l border-neutral-800 shadow-2xl flex flex-col animate-slide-in-right cursor-default"
+      >
         
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-800 bg-neutral-900/50">
@@ -103,9 +125,16 @@ export function AlertDetailDrawer({ alert, onClose, onStatusChange }: AlertDetai
             <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-semibold text-neutral-300 uppercase tracking-wider">MITRE ATT&CK Context</h4>
-                <span className="px-2 py-1 bg-indigo-500/10 text-indigo-400 rounded text-xs border border-indigo-500/20 font-mono">
-                  {alert.mitre_enrichment.technique_id}
-                </span>
+                <a
+                  href={getMitreUrl(alert.mitre_enrichment.technique_id)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 rounded-lg text-xs border border-indigo-500/30 hover:border-indigo-400 font-mono transition-all group"
+                  title={`Open ${alert.mitre_enrichment.technique_id} on official MITRE ATT&CK website`}
+                >
+                  <span>{alert.mitre_enrichment.technique_id}</span>
+                  <ExternalLink className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100 transition-opacity" />
+                </a>
               </div>
               
               <div>
