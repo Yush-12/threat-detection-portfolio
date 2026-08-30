@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateSyntheticLogs, evaluateRules, computeMetrics, correlateIncidents, SIGMA_RULES, RawLog } from './siem-engine';
+import { generateSyntheticLogs, evaluateRules, computeMetrics, correlateIncidents, calculateConfidenceScore, SIGMA_RULES, RawLog } from './siem-engine';
 
 describe('SIEM Engine Core Logic', () => {
   it('should generate valid synthetic logs', () => {
@@ -93,6 +93,32 @@ describe('SIEM Engine Core Logic', () => {
     expect(incidents.length).toBeGreaterThan(0);
     expect(incidents.some(inc => inc.entity_id === 'compromised_admin' || inc.entity_id === '10.0.0.99')).toBe(true);
     expect(incidents[0].severity).toBe('critical');
+  });
+
+  it('should calculate confidence scores correctly based on heuristics', () => {
+    // 1. Critical rule (25) + Russia location (15) + off-hours 02:00 (10) + high_value_transfer (10) + base (50) = 110 -> clamped to 99
+    const highRiskLog: RawLog = {
+      timestamp: '2026-08-30T02:30:00Z',
+      user: 'attacker',
+      action: 'high_value_transfer',
+      ip_address: '1.2.3.4',
+      location: 'Russia',
+      device: 'desktop',
+    };
+    const criticalRule = SIGMA_RULES.find(r => r.level === 'critical')!;
+    expect(calculateConfidenceScore(highRiskLog, criticalRule)).toBe(99);
+
+    // 2. Low rule (0) + normal location (0) + mid-day 14:00 (0) + login_success (0) + base (50) = 50
+    const lowRiskLog: RawLog = {
+      timestamp: '2026-08-30T14:30:00Z',
+      user: 'alice',
+      action: 'login_success',
+      ip_address: '1.2.3.4',
+      location: 'US',
+      device: 'mobile',
+    };
+    const lowRule = SIGMA_RULES.find(r => r.level === 'low')!;
+    expect(calculateConfidenceScore(lowRiskLog, lowRule)).toBe(50);
   });
 });
 

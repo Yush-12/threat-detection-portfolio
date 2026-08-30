@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Download, FileText, Table, ChevronDown, ExternalLink } from 'lucide-react';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import type { Alert, DashboardMetrics, Incident } from '../lib/siem-engine';
 
 interface ExportDropdownProps {
@@ -12,7 +10,7 @@ interface ExportDropdownProps {
   incidents?: Incident[];
 }
 
-export function ExportDropdown({ alerts, metrics, incidents = [] }: ExportDropdownProps) {
+export function ExportDropdown({ alerts }: ExportDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -80,95 +78,11 @@ export function ExportDropdown({ alerts, metrics, incidents = [] }: ExportDropdo
     }
   };
 
-  // ─── PDF Export (Opens in New Tab Preview) ──────────────────────────────
-  const exportPDF = async () => {
+  // ─── Native PDF Print ──────────────────────────────
+  const exportPDF = () => {
     setExporting(true);
     try {
-      const dataset = await fetchAllAlertsForExport();
-      const doc = new jsPDF();
-
-      // Header Banner
-      doc.setFillColor(15, 23, 42); // Dark slate
-      doc.rect(0, 0, 210, 36, 'F');
-      
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text('SOC Threat Intelligence & Incident Report', 14, 18);
-
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(148, 163, 184);
-      doc.text(`Generated: ${new Date().toUTCString()} | Threat Detection Portfolio SIEM`, 14, 26);
-
-      // Executive Summary
-      doc.setTextColor(30, 41, 59);
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.text('1. Executive Threat Summary', 14, 46);
-
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Total Alerts Analyzed: ${metrics?.total_alerts || dataset.length}`, 14, 54);
-      doc.text(`Critical Severity Alerts: ${metrics?.alert_counts_by_severity?.CRITICAL || 0}`, 14, 60);
-      doc.text(`High Severity Alerts: ${metrics?.alert_counts_by_severity?.HIGH || 0}`, 80, 60);
-      doc.text(`Correlated Attack Incidents: ${incidents.length}`, 140, 60);
-
-      // Incidents Table (if any)
-      let nextY = 70;
-      if (incidents.length > 0) {
-        doc.setFontSize(13);
-        doc.setFont('helvetica', 'bold');
-        doc.text('2. High-Priority Correlated Incidents', 14, nextY);
-
-        const incRows = incidents.map(inc => [
-          inc.incident_id,
-          inc.title,
-          inc.severity.toUpperCase(),
-          `${inc.entity_type.toUpperCase()}: ${inc.entity_id}`,
-          `${inc.alert_count} alerts`,
-        ]);
-
-        autoTable(doc, {
-          startY: nextY + 4,
-          head: [['ID', 'Incident Title', 'Severity', 'Target Entity', 'Volume']],
-          body: incRows,
-          theme: 'striped',
-          headStyles: { fillColor: [225, 29, 72] }, // Rose red
-          styles: { fontSize: 8 },
-        });
-
-        // @ts-expect-error autoTable adds lastAutoTable to doc
-        nextY = (doc.lastAutoTable?.finalY || nextY + 40) + 12;
-      }
-
-      // Security Alerts Sample Table
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.text('3. Security Alerts Log', 14, nextY);
-
-      const alertRows = dataset.slice(0, 50).map(a => [
-        new Date(a.timestamp).toLocaleString(),
-        a.rule_title,
-        (a.severity || 'low').toUpperCase(),
-        a.hit_log?.user || a.hit_log?.ip_address || 'N/A',
-        a.mitre_enrichment?.technique_id || 'N/A',
-        (a.status || 'open').toUpperCase(),
-      ]);
-
-      autoTable(doc, {
-        startY: nextY + 4,
-        head: [['Time', 'Rule Title', 'Severity', 'Entity', 'MITRE ID', 'Status']],
-        body: alertRows,
-        theme: 'striped',
-        headStyles: { fillColor: [79, 70, 229] }, // Indigo
-        styles: { fontSize: 8 },
-      });
-
-      // Output as Blob and open in new tab
-      const pdfBlob = doc.output('blob');
-      const blobUrl = URL.createObjectURL(pdfBlob);
-      window.open(blobUrl, '_blank');
+      window.print();
     } catch (err) {
       console.error('PDF export error:', err);
     } finally {

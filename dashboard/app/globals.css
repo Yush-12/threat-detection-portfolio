@@ -65,11 +65,10 @@
 .stagger-3 { animation-delay: 120ms; opacity: 0; }
 .stagger-4 { animation-delay: 160ms; opacity: 0; }
 
-body {
-  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
-}
-
 /* ─── Circular View Transitions for Theme Toggle ───────────────────────── */
+/* disableTransitionOnChange prevents per-element CSS transition jank.
+   The View Transitions API handles the visual effect as a single
+   compositor-level screenshot animation instead. */
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;
@@ -84,21 +83,4 @@ body {
   z-index: 9999;
 }
 
-/* World Map SVG Geographies */
-html.dark path.rsm-geography {
-  fill: #171717;
-  stroke: #262626;
-}
 
-html.dark path.rsm-geography:hover {
-  fill: #262626;
-}
-
-html.light path.rsm-geography {
-  fill: #e2e8f0;
-  stroke: #cbd5e1;
-}
-
-html.light path.rsm-geography:hover {
-  fill: #cbd5e1;
-}

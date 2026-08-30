@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   description: "A serverless SIEM pipeline with real-time threat detection, MITRE ATT&CK enrichment, and interactive security analytics.",
 };
 
-import { ThemeProvider } from "./components/ThemeProvider";
+import { ThemeProvider } from "next-themes";
 
 export default function RootLayout({
   children,
@@ -30,8 +30,8 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-neutral-950 text-neutral-100 transition-colors">
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+      <body className="min-h-full flex flex-col bg-neutral-950 text-neutral-100">
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
           {children}
         </ThemeProvider>
       </body>

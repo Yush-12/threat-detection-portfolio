@@ -2,7 +2,9 @@
 
 import { useMemo } from 'react';
 import { Flame, User, Globe, ArrowRight } from 'lucide-react';
+import { getSeverityBadgeColors } from '../lib/utils';
 import type { Incident } from '../lib/siem-engine';
+import { SEVERITY_RANK } from '../lib/siem-engine';
 
 interface IncidentsSectionProps {
   incidents?: Incident[];
@@ -13,9 +15,8 @@ export function IncidentsSection({ incidents = [], onEntityClick }: IncidentsSec
   // Guarantee Critical incidents appear first, then High, then Medium
   const sortedIncidents = useMemo(() => {
     if (!incidents || incidents.length === 0) return [];
-    const rank: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
     return [...incidents].sort((a, b) => {
-      const diff = (rank[b.severity.toLowerCase()] || 0) - (rank[a.severity.toLowerCase()] || 0);
+      const diff = (SEVERITY_RANK[b.severity.toLowerCase()] || 0) - (SEVERITY_RANK[a.severity.toLowerCase()] || 0);
       if (diff !== 0) return diff;
       return b.alert_count - a.alert_count;
     });
@@ -59,11 +60,7 @@ export function IncidentsSection({ incidents = [], onEntityClick }: IncidentsSec
                   <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-neutral-800 text-slate-700 dark:text-neutral-300 border border-slate-300 dark:border-neutral-700">
                     {inc.incident_id}
                   </span>
-                  <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full uppercase ${
-                    isCritical 
-                      ? 'bg-rose-600 text-white shadow-sm' 
-                      : 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-500/30'
-                  }`}>
+                  <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full uppercase ${getSeverityBadgeColors(inc.severity)}`}>
                     {inc.severity}
                   </span>
                 </div>

@@ -1,7 +1,8 @@
 "use client";
 
-import { X, ShieldAlert, Clock, MapPin, Terminal, Layers } from 'lucide-react';
-import { useEffect, useMemo } from 'react';
+import { X, ShieldAlert, Clock, MapPin, Terminal, Layers, Loader2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { getSeverityBadgeColors } from '../lib/utils';
 import type { Alert } from '../lib/siem-engine';
 
 interface InvestigationDrawerProps {
@@ -10,7 +11,9 @@ interface InvestigationDrawerProps {
   onClose: () => void;
 }
 
-export function InvestigationDrawer({ entity, alerts, onClose }: InvestigationDrawerProps) {
+export function InvestigationDrawer({ entity, alerts: initialAlerts, onClose }: InvestigationDrawerProps) {
+  const [fetchedAlerts, setFetchedAlerts] = useState<Alert[] | null>(null);
+  const [loading, setLoading] = useState(false);
   useEffect(() => {
     if (!entity) return;
 
@@ -26,13 +29,44 @@ export function InvestigationDrawer({ entity, alerts, onClose }: InvestigationDr
     };
   }, [entity, onClose]);
 
+  useEffect(() => {
+    if (!entity) return;
+    
+    // Check if the entity already has alerts in the current page view. 
+    // If it has fewer than what might exist (we assume > 0 means we might still want to fetch all to be sure,
+    // but fetching guarantees we see historical ones not on page 1).
+    let isMounted = true;
+    const fetchEntityAlerts = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/metrics?search=${encodeURIComponent(entity.id)}&limit=200`);
+        const json = await res.json();
+        if (isMounted && json.alerts) {
+          setFetchedAlerts(json.alerts);
+        }
+      } catch (err) {
+        console.error('Failed to fetch entity alerts:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    
+    fetchEntityAlerts();
+    
+    return () => { isMounted = false; };
+  }, [entity]);
+
   const relatedAlerts = useMemo(() => {
     if (!entity) return [];
-    return alerts.filter(a => {
+    
+    // Use fetched alerts if available, otherwise fallback to local filter
+    if (fetchedAlerts) return fetchedAlerts;
+    
+    return initialAlerts.filter(a => {
       if (entity.type === 'user') return a.hit_log?.user === entity.id;
       return a.hit_log?.ip_address === entity.id;
     });
-  }, [entity, alerts]);
+  }, [entity, initialAlerts, fetchedAlerts]);
 
   const stats = useMemo(() => {
     if (!relatedAlerts.length) return null;
@@ -95,22 +129,28 @@ export function InvestigationDrawer({ entity, alerts, onClose }: InvestigationDr
         <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
           
           {/* Quick Metrics */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl p-4 text-center shadow-xs">
-              <span className="text-xs text-slate-500 dark:text-neutral-500 block mb-1 font-medium">Total Hits</span>
-              <span className="text-2xl font-bold font-mono text-slate-900 dark:text-white">{relatedAlerts.length}</span>
+          {loading ? (
+            <div className="flex items-center justify-center p-12 text-slate-400">
+              <Loader2 className="w-8 h-8 animate-spin" />
             </div>
-            <div className="bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl p-4 text-center shadow-xs">
-              <span className="text-xs text-slate-500 dark:text-neutral-500 block mb-1 font-medium">Critical / High</span>
-              <span className="text-2xl font-bold font-mono text-rose-600 dark:text-rose-400">
-                {(stats?.criticalCount || 0) + (stats?.highCount || 0)}
-              </span>
-            </div>
-            <div className="bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl p-4 text-center shadow-xs">
-              <span className="text-xs text-slate-500 dark:text-neutral-500 block mb-1 font-medium">Tactics Involved</span>
-              <span className="text-2xl font-bold font-mono text-indigo-600 dark:text-indigo-400">{stats?.tactics.length || 0}</span>
-            </div>
-          </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl p-4 text-center shadow-xs">
+                  <span className="text-xs text-slate-500 dark:text-neutral-500 block mb-1 font-medium">Total Hits</span>
+                  <span className="text-2xl font-bold font-mono text-slate-900 dark:text-white">{relatedAlerts.length}</span>
+                </div>
+                <div className="bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl p-4 text-center shadow-xs">
+                  <span className="text-xs text-slate-500 dark:text-neutral-500 block mb-1 font-medium">Critical / High</span>
+                  <span className="text-2xl font-bold font-mono text-rose-600 dark:text-rose-400">
+                    {(stats?.criticalCount || 0) + (stats?.highCount || 0)}
+                  </span>
+                </div>
+                <div className="bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl p-4 text-center shadow-xs">
+                  <span className="text-xs text-slate-500 dark:text-neutral-500 block mb-1 font-medium">Tactics Involved</span>
+                  <span className="text-2xl font-bold font-mono text-indigo-600 dark:text-indigo-400">{stats?.tactics.length || 0}</span>
+                </div>
+              </div>
 
           {/* Observed Context */}
           {stats && (
@@ -181,12 +221,7 @@ export function InvestigationDrawer({ entity, alerts, onClose }: InvestigationDr
                       <span className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
                         {alert.rule_title}
                       </span>
-                      <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full uppercase
-                        ${alert.severity?.toLowerCase() === 'critical' ? 'bg-rose-50 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30' : ''}
-                        ${alert.severity?.toLowerCase() === 'high' ? 'bg-orange-50 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-500/30' : ''}
-                        ${alert.severity?.toLowerCase() === 'medium' ? 'bg-amber-50 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30' : ''}
-                        ${alert.severity?.toLowerCase() === 'low' ? 'bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30' : ''}
-                      `}>
+                      <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full uppercase ${getSeverityBadgeColors(alert.severity)}`}>
                         {alert.severity}
                       </span>
                     </div>
@@ -202,6 +237,8 @@ export function InvestigationDrawer({ entity, alerts, onClose }: InvestigationDr
               </div>
             )}
           </div>
+          </>
+          )}
 
         </div>
       </div>

@@ -298,6 +298,64 @@ export function evaluateRules(logs: RawLog[], rules: SigmaRule[]): Alert[] {
   return alerts;
 }
 
+export const HIGH_RISK_COUNTRIES = new Set([
+  'Russia',
+  'China',
+  'North Korea',
+  'Iran',
+  'Nigeria',
+  'Syria',
+  'Belarus',
+  'Cuba'
+]);
+
+export function calculateConfidenceScore(log: RawLog, rule: SigmaRule): number {
+  let score = 50;
+
+  // 1. Rule Severity Modifier
+  switch (rule.level) {
+    case 'critical':
+      score += 25;
+      break;
+    case 'high':
+      score += 15;
+      break;
+    case 'medium':
+      score += 5;
+      break;
+    case 'low':
+      score += 0;
+      break;
+  }
+
+  // 2. Time of Day Modifier (Off-hours: 00:00 - 05:00 UTC)
+  if (log.timestamp) {
+    try {
+      const hour = new Date(log.timestamp).getUTCHours();
+      if (hour >= 0 && hour <= 5) {
+        score += 10;
+      }
+    } catch {
+      // Ignore timestamp parsing issues
+    }
+  }
+
+  // 3. Geographic Risk Modifier
+  if (log.location && HIGH_RISK_COUNTRIES.has(log.location)) {
+    score += 15;
+  }
+
+  // 4. Action Context
+  if (log.action === 'high_value_transfer' || log.action === 'role_change') {
+    score += 10;
+  } else if (log.action === 'login_failed') {
+    score += 5;
+  }
+
+  // Bound score between 1 and 99
+  return Math.min(99, Math.max(1, score));
+}
+
 function createAlert(rule: SigmaRule, log: RawLog, alerts: Alert[], now: string) {
   const mitre_enrichment: { technique_id?: string; name?: string; tactic?: string; description?: string; remediation?: string } = {};
 
@@ -317,7 +375,7 @@ function createAlert(rule: SigmaRule, log: RawLog, alerts: Alert[], now: string)
     timestamp: log.timestamp || now,
     rule_title: rule.title,
     hit_log: log,
-    confidence_score: Math.floor(Math.random() * 41) + 60, // 60-100
+    confidence_score: calculateConfidenceScore(log, rule),
     mitre_enrichment,
     severity: rule.level,
     status: 'open',
@@ -334,7 +392,12 @@ export interface DashboardMetrics {
   mitre_techniques?: Record<string, { name: string; tactic: string; count: number; max_severity: string }>;
 }
 
-export const SEVERITY_RANK: Record<string, number> = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
+export const SEVERITY_RANK: Record<string, number> = { 
+  CRITICAL: 4, critical: 4, 
+  HIGH: 3, high: 3, 
+  MEDIUM: 2, medium: 2, 
+  LOW: 1, low: 1 
+};
 
 export function computeMetrics(alerts: Alert[]): DashboardMetrics {
   const severityCounts: Record<string, number> = {};

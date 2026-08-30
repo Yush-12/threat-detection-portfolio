@@ -1,6 +1,7 @@
 "use client";
 
 import { Search, ArrowUp, ArrowDown, ArrowUpDown, ShieldAlert, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { getSeverityBadgeColors } from '../lib/utils';
 import type { Pagination } from '../page';
 import type { Alert } from '../lib/siem-engine';
 
@@ -165,12 +166,7 @@ export function AlertsTable({
                   {alert.rule_title}
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold tracking-wider
-                    ${alert.severity?.toLowerCase() === 'critical' ? 'bg-rose-50 dark:bg-red-600/20 text-rose-700 dark:text-red-300 border border-rose-200 dark:border-red-400/30' : ''}
-                    ${alert.severity?.toLowerCase() === 'high' ? 'bg-orange-50 dark:bg-red-500/10 text-orange-700 dark:text-red-400 border border-orange-200 dark:border-red-500/20' : ''}
-                    ${alert.severity?.toLowerCase() === 'medium' ? 'bg-amber-50 dark:bg-yellow-500/10 text-amber-800 dark:text-yellow-400 border border-amber-200 dark:border-yellow-500/20' : ''}
-                    ${alert.severity?.toLowerCase() === 'low' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20' : ''}
-                  `}>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold tracking-wider ${getSeverityBadgeColors(alert.severity)}`}>
                     {alert.severity?.toUpperCase() || 'UNKNOWN'}
                   </span>
                 </td>
