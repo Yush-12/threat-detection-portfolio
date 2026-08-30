@@ -23,7 +23,7 @@ Built to demonstrate end-to-end security engineering: detection engineering, log
 │                                                                                                        │
 │  ┌─────────────────────────┐  ┌─────────────────────────┐  ┌────────────────────────────────────────┐  │
 │  │   Alert Volume Timeline │  │   Global Threat Origins │  │       Live Threat Telemetry Feed       │  │
-│  │   (Hourly/Daily Bursts) │  │  (SVG Map + Coordinates)│  │       (Real-time Activity Stream)      │  │
+│  │   (Hourly/Daily Bursts) │  │  (TopoJSON Choropleth)  │  │       (Real-time Activity Stream)      │  │
 │  └─────────────────────────┘  └─────────────────────────┘  └────────────────────────────────────────┘  │
 │                                                                                                        │
 │  ┌─────────────────────────┐  ┌─────────────────────────┐  ┌────────────────────────────────────────┐  │
@@ -45,7 +45,6 @@ Built to demonstrate end-to-end security engineering: detection engineering, log
 │                        lib/ (TypeScript Security Engine)                                       │
 │        ├── siem-engine.ts         (Sigma rules, MITRE enrichment, incident correlation)                │
 │        ├── risk-engine.ts         (Multi-factor entity risk scoring with time decay)                  │
-│        ├── country-coordinates.ts (240+ world country centroid mapping & normalization)               │
 │        └── mongodb.ts             (Singleton connection pooling for serverless)                       │
 └───────────────────────────────────────────────────┼────────────────────────────────────────────────────┘
                                                     │
@@ -82,11 +81,11 @@ The pipeline evaluates **7 Sigma-format detection rules** against raw security t
 - **🧠 Automated Incident Correlation** — Groups multi-stage adversary behaviors across detection rules into high-priority attack incidents, prioritized with `CRITICAL` incidents first.
 - **🗺️ Interactive MITRE ATT&CK Matrix** — 14-tactic matrix color-coded by highest detected severity (Critical = Rose, High = Amber, Medium = Yellow, Low = Blue). Clicking any cell filters the dashboard.
 - **📈 Real-Time Alert Timeline** — Stacked gradient area chart showing attack bursts and alert distribution over time across days and hours.
-- **🌐 Global Threat Origins Geo Map** — SVG world projection with 240+ country centroids and high-contrast tooltip badges plotting adversary geographic locations.
-- **🔍 Deep Threat Investigation View** — Drill-down drawer showing entity telemetry, observed locations, device footprints, tactics, and event history.
+- **🌐 Global Threat Origins Choropleth Map** — Interactive TopoJSON world projection with dynamic severity-based shading plotting adversary geographic locations.
+- **🔍 Deep Threat Investigation View** — Drill-down drawer showing full historical entity telemetry, locations, devices, tactics, and complete event history.
 - **📡 Live Threat Feed** — Real-time event feed with pulse indicators for continuous SOC awareness.
-- **📄 Incident Report Exports (PDF & CSV)** — View and print executive SOC Incident Reports in a new tab via `jsPDF`/`autoTable` or download raw alert CSVs.
-- **🌗 View Transitions Dark/Light Theme Engine** — Seamless circular ripple reveal animation powered by the modern View Transitions API with Stripe/Linear-grade contrast.
+- **📄 Incident Report Exports (Native Print & CSV)** — View and print executive SOC Incident Reports using native browser printing or download raw alert CSVs.
+- **🌗 View Transitions Dark/Light Theme Engine** — Seamless circular ripple reveal animation powered by the modern View Transitions API with Stripe/Linear-grade contrast, optimized with `disableTransitionOnChange` for zero CSS jank.
 - **🏆 Entity Risk Scoreboard** — Calculates multi-factor risk scores for Users and IPs based on severity weight, technique diversity multipliers, and exponential time decay.
 - **📋 Alert Detail Drawer & Triage Workflow** — Inspection panel with status transitions (`Open`, `Investigating`, `Resolved`, `False Positive`) and raw JSON event inspector.
 - **⚡ Dynamic Dataset Generation** — Generates 300–600 randomized synthetic logs with multi-day realistic attack scenarios.
@@ -174,20 +173,18 @@ threat-detection-portfolio/
 │   │   ├── components/
 │   │   │   ├── AlertDetailDrawer.tsx   # Slide-in drawer & triage workflow
 │   │   │   ├── AlertsTable.tsx         # Interactive table with multi-sort & search
-│   │   │   ├── ExportDropdown.tsx      # PDF preview & CSV incident exporter
-│   │   │   ├── GeoMap.tsx              # Global threat origins SVG world map
+│   │   │   ├── ExportDropdown.tsx      # Native print preview & CSV exporter
+│   │   │   ├── GeoMap.tsx              # TopoJSON choropleth threat map
 │   │   │   ├── IncidentsSection.tsx    # Correlated multi-stage attack campaigns
-│   │   │   ├── InvestigationDrawer.tsx # Deep entity investigation drawer
+│   │   │   ├── InvestigationDrawer.tsx # Deep entity investigation drawer (history fetch)
 │   │   │   ├── LiveActivityFeed.tsx    # Live telemetry feed
 │   │   │   ├── MetricCards.tsx         # Top metric summary cards
 │   │   │   ├── MitreHeatmap.tsx        # 14-tactic severity-coded MITRE matrix
 │   │   │   ├── RiskScoreboard.tsx      # Top risky Users and IPs leaderboard
 │   │   │   ├── SeverityChart.tsx       # Donut chart & triage status distribution
-│   │   │   ├── ThemeProvider.tsx       # Theme provider wrapper
 │   │   │   ├── ThemeToggle.tsx         # View Transitions circular ripple theme switcher
 │   │   │   └── TimelineChart.tsx       # Real-time alert volume timeline chart
 │   │   ├── lib/
-│   │   │   ├── country-coordinates.ts  # 240+ country centroids database
 │   │   │   ├── mongodb.ts              # Singleton connection pool
 │   │   │   ├── rate-limit.ts           # In-memory sliding window rate limiter
 │   │   │   ├── risk-engine.ts          # Multi-factor entity risk scoring engine
