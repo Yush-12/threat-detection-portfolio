@@ -84,7 +84,7 @@ The pipeline evaluates **7 Sigma-format detection rules** against raw security t
 - **🌐 Global Threat Origins Choropleth Map** — Interactive TopoJSON world projection with dynamic severity-based shading plotting adversary geographic locations.
 - **🔍 Deep Threat Investigation View** — Drill-down drawer showing full historical entity telemetry, locations, devices, tactics, and complete event history.
 - **📡 Live Threat Feed** — Real-time event feed with pulse indicators for continuous SOC awareness.
-- **📄 Incident Report Exports (Native Print & CSV)** — View and print executive SOC Incident Reports using native browser printing or download raw alert CSVs.
+- **📄 Incident Report Exports (PDF & CSV)** — Generate executive SOC Incident Reports as PDFs that open in a new tab for viewing/downloading, or download raw alert CSVs.
 - **🌗 View Transitions Dark/Light Theme Engine** — Seamless circular ripple reveal animation powered by the modern View Transitions API with Stripe/Linear-grade contrast, optimized with `disableTransitionOnChange` for zero CSS jank.
 - **🏆 Entity Risk Scoreboard** — Calculates multi-factor risk scores for Users and IPs based on severity weight, technique diversity multipliers, and exponential time decay.
 - **📋 Alert Detail Drawer & Triage Workflow** — Inspection panel with status transitions (`Open`, `Investigating`, `Resolved`, `False Positive`) and raw JSON event inspector.
@@ -173,7 +173,7 @@ threat-detection-portfolio/
 │   │   ├── components/
 │   │   │   ├── AlertDetailDrawer.tsx   # Slide-in drawer & triage workflow
 │   │   │   ├── AlertsTable.tsx         # Interactive table with multi-sort & search
-│   │   │   ├── ExportDropdown.tsx      # Native print preview & CSV exporter
+│   │   │   ├── ExportDropdown.tsx      # PDF report (new tab) & CSV exporter
 │   │   │   ├── GeoMap.tsx              # TopoJSON choropleth threat map
 │   │   │   ├── IncidentsSection.tsx    # Correlated multi-stage attack campaigns
 │   │   │   ├── InvestigationDrawer.tsx # Deep entity investigation drawer (history fetch)

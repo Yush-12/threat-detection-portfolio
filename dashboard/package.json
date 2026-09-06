@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@faker-js/faker": "^10.4.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.14.0",
     "mongodb": "^7.2.0",
     "next": "^16.2.6",
